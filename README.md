@@ -118,7 +118,8 @@ Notes:
 
 - `MODE AP` boots as Access Point.
 - `MODE STA` boots as normal router/client WiFi mode.
-- In `MODE AP`, the boot status bar is set to `webwings.nl 2026 (Access Point Mode)`.
+- In AP mode, the default status bar is `webwings.nl 2026 (AP: <board-ip>)`.
+- In STA mode, the default status bar is `webwings.nl 2026 (STA: <board-ip>)`.
 - `CONTENT "LOGO"` shows the centered logo by default.
 - Any other `CONTENT` value is used as default content text.
 
@@ -129,7 +130,7 @@ For automation from another device in the same network, use:
 - `POST /api/update`
 - `Content-Type: application/x-www-form-urlencoded`
 - Body fields: `title`, `content` and/or `status` (all optional, at least one required)
-- If `status` is sent empty (`status=`), the status bar is set to `webwings.nl 2026 (IP:<board-ip>)` when WiFi is connected.
+- If `status` is sent empty (`status=`), the status bar is set to `webwings.nl 2026 (AP: <board-ip>)` in AP mode or `webwings.nl 2026 (STA: <board-ip>)` in STA mode.
 - If WiFi is not connected, empty `status` falls back to `webwings.nl 2026`.
 
 Examples:

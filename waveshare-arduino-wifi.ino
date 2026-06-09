@@ -29,7 +29,6 @@ static const unsigned long kWifiConnectTimeoutMs = 30000;
 static const unsigned long kWifiConnectPollMs = 500;
 static const char kDefaultApSsid[] = "Waveshare-AP";
 static const char kDefaultApPassword[] = "waveshare123";
-static const char kApModeBootStatus[] = "webwings.nl 2026 (Access Point Mode)";
 static const UWORD kBoldOffsetPx = 1;
 static const unsigned long kHttpReadTimeoutMs = 3000;
 static const size_t kHttpBodyMax = 512;
@@ -165,7 +164,9 @@ static String buildDefaultStatusText(void)
 {
     String status = "webwings.nl 2026";
     if (isNetworkReady()) {
-        status += " (IP:";
+        status += " (";
+        status += activeWifiModeLabel();
+        status += ": ";
         status += ipToString(WiFi.localIP());
         status += ")";
     }
@@ -282,6 +283,8 @@ static bool switchNetworkMode(const bool useAccessPointMode)
         applyNetworkMode();
     }
 
+    setModeDefaultStatusText();
+
     if (ok) {
         Serial.print(F("Network mode active: "));
         Serial.println(activeWifiModeLabel());
@@ -311,15 +314,15 @@ static void copyStringToBuffer(const String& src, char* dst, size_t dstSize)
     dst[dstSize - 1] = '\0';
 }
 
+static void setModeDefaultStatusText(void)
+{
+    copyStringToBuffer(buildDefaultStatusText(), gStatusText, kStatusTextMax);
+}
+
 static void applyConfiguredDisplayDefaults(void)
 {
     copyStringToBuffer(String(TITLE), gTitleText, kTitleTextMax);
-
-    if (gUseAccessPointMode) {
-        copyStringToBuffer(String(kApModeBootStatus), gStatusText, kStatusTextMax);
-    } else {
-        copyStringToBuffer(String(STATUS), gStatusText, kStatusTextMax);
-    }
+    setModeDefaultStatusText();
 
     String defaultContent = String(CONTENT);
     defaultContent.trim();
