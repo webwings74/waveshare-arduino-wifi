@@ -6,3 +6,6 @@ secrets.h
 
 # Python cache
 __pycache__/
+
+# Generated cache for font download/conversion helper
+tools/fonts-cache/

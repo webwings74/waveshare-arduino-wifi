@@ -161,6 +161,19 @@ static const char* activeWifiModeLabel(void)
     return gUseAccessPointMode ? "AP" : "STA";
 }
 
+static sFONT* getConfiguredContentFont(void)
+{
+#if CONTENT_FONT == CONTENT_FONT_SPACE_MONO
+    return &Font48_GoogleSpaceMono;
+#elif CONTENT_FONT == CONTENT_FONT_MANROPE
+    return &Font48_GoogleManrope;
+#elif CONTENT_FONT == CONTENT_FONT_ANTON
+    return &Font48_GoogleAnton;
+#else
+    return &Font48;
+#endif
+}
+
 static String buildDefaultStatusText(void)
 {
     String status = "webwings.nl 2026";
@@ -1027,6 +1040,7 @@ static void runDisplayCycle(void)
     const char* titleText = gTitleText;
     const UWORD titleBarHeight = (kDisplayHeight * 20) / 100;
     const UWORD statusBarHeight = Font24.Height + 12;
+    sFONT* contentFont = getConfiguredContentFont();
     const UWORD contentTop = titleBarHeight;
     const UWORD contentBottom = kDisplayHeight - statusBarHeight;
     const UWORD contentHeight = contentBottom - contentTop;
@@ -1082,7 +1096,7 @@ static void runDisplayCycle(void)
         Paint_DrawImage(gImage_240x240logo, logoX, logoY, logoW, logoH);
     } else {
         logStatus("Draw black content text");
-        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, &Font48, false);
+        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, false);
     }
 
     Paint_NewImage(REDIMAGE, kDisplayWidth, kDisplayHeight, ROTATE_0, WHITE);
@@ -1096,7 +1110,7 @@ static void runDisplayCycle(void)
     drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, -1, RED);
     if (strlen(gContentText) > 0) {
         logStatus("Draw red content text");
-        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, &Font48, true);
+        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, true);
     }
 
     logStatus("Start EPD_12in48B_Display (full refresh)");

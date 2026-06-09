@@ -17,6 +17,7 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 - Added styled `CONTENT` markup with `_text_` rendering in red.
 - Added styled `CONTENT` markup with `|text|` rendering extra bold.
 - Added styled `CONTENT` markup where `\n` forces a line break.
+- Added optional Google Font presets for content text (`Space Mono`, `Manrope`, `Anton`) via `CONTENT_FONT` in `config.h`.
 - Added `secrets-example.h` and `.gitignore` workflow for safe GitHub usage without exposing local credentials.
 
 ## Current Functionality
@@ -120,6 +121,7 @@ Use `config.h` to set network startup mode and display defaults:
 #define TITLE "Waveshare"
 #define CONTENT "LOGO"
 #define STATUS "webwings.nl 2026"
+#define CONTENT_FONT CONTENT_FONT_DEFAULT
 ```
 
 Notes:
@@ -130,6 +132,11 @@ Notes:
 - Boot rendering keeps configured/default status text; AP/STA `<ip>` status is only auto-set on runtime `CONTENT` updates.
 - `CONTENT "LOGO"` shows the centered logo by default.
 - Any other `CONTENT` value is used as default content text.
+- `CONTENT_FONT` selects a Font48 preset for content text:
+    - `CONTENT_FONT_DEFAULT`
+    - `CONTENT_FONT_SPACE_MONO`
+    - `CONTENT_FONT_MANROPE`
+    - `CONTENT_FONT_ANTON`
 
 ### HTTP POST From Another Device
 

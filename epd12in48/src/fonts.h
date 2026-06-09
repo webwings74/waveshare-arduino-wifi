@@ -81,6 +81,9 @@ typedef struct
 extern sFONT Font24;
 extern sFONT Font64;
 extern sFONT Font48;
+extern sFONT Font48_GoogleSpaceMono;
+extern sFONT Font48_GoogleManrope;
+extern sFONT Font48_GoogleAnton;
 extern sFONT Font32;
 extern sFONT Font20;
 extern sFONT Font16;

@@ -13,4 +13,12 @@
 #define CONTENT "LOGO"
 #define STATUS "webwings.nl 2026"
 
+// Content font preset (Font48 height) for the main content area.
+// 0 = default library font, 1 = Google Space Mono, 2 = Google Manrope, 3 = Google Anton.
+#define CONTENT_FONT_DEFAULT 0
+#define CONTENT_FONT_SPACE_MONO 1
+#define CONTENT_FONT_MANROPE 2
+#define CONTENT_FONT_ANTON 3
+#define CONTENT_FONT CONTENT_FONT_DEFAULT
+
 #endif  // CONFIG_H
