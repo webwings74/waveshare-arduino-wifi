@@ -208,7 +208,7 @@ echo '{"title":"CLI","content":"Test","status":""}' | python3 example-json.py --
 ## Software Setup
 
 1. Install Arduino board package for UNO R4.
-2. Install the Waveshare 12in48 library in your Arduino libraries folder.
+2. This repository includes the Waveshare library in `epd12in48/` at repo root.
 3. Open `waveshare-arduino-wifi.ino` in Arduino IDE or compile with `arduino-cli`.
 
 ## WiFi Credentials
@@ -254,7 +254,7 @@ The library pin mapping for non-ESP32 targets (used here) is:
 
 Compile:
 
-    arduino-cli compile -b arduino:renesas_uno:unor4wifi waveshare-arduino-wifi.ino
+    arduino-cli compile -b arduino:renesas_uno:unor4wifi --library ./epd12in48 waveshare-arduino-wifi.ino
 
 Upload (replace port):
 
