@@ -3,11 +3,19 @@
 #include "GUI_Paint.h"
 #include "SRAM_23LC.h"
 #include "imagedata.h"
+#include "config.h"
 #include "secrets.h"
 #include <WiFiS3.h>
 #include <string.h>
 
 static const bool kDiagnosticMode = false;
+#if MODE == AP
+static const bool kBootInAccessPointMode = true;
+#elif MODE == STA
+static const bool kBootInAccessPointMode = false;
+#else
+#error "Invalid MODE in config.h. Use AP or STA."
+#endif
 static const UWORD kDisplayWidth = 1304;
 static const UWORD kDisplayHeight = 984;
 static const UWORD kLogoSize = 240;
@@ -19,17 +27,21 @@ static const size_t kSerialLineMax = 320;
 static const unsigned long kSerialIdleProcessMs = 500;
 static const unsigned long kWifiConnectTimeoutMs = 30000;
 static const unsigned long kWifiConnectPollMs = 500;
+static const char kDefaultApSsid[] = "Waveshare-AP";
+static const char kDefaultApPassword[] = "waveshare123";
+static const char kApModeBootStatus[] = "webwings.nl 2026 (Access Point Mode)";
 static const UWORD kBoldOffsetPx = 2;
 static const unsigned long kHttpReadTimeoutMs = 3000;
 static const size_t kHttpBodyMax = 512;
 
-static char gTitleText[kTitleTextMax] = "Waveshare";
+static char gTitleText[kTitleTextMax] = "";
 static char gContentText[kContentTextMax] = "";
-static char gStatusText[kStatusTextMax] = "webwings.nl 2026";
+static char gStatusText[kStatusTextMax] = "";
 static String gSerialLine;
 static unsigned long gLastSerialCharMs = 0;
 static WiFiServer gWebServer(80);
 static bool gWebServerStarted = false;
+static bool gUseAccessPointMode = kBootInAccessPointMode;
 
 static void logStatus(const char* msg)
 {
@@ -110,10 +122,49 @@ static String ipToString(const IPAddress& ip)
     return String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]);
 }
 
+static const char* getAccessPointSsid(void)
+{
+#ifdef AP_SSID
+    return AP_SSID;
+#else
+    return kDefaultApSsid;
+#endif
+}
+
+static const char* getAccessPointPassword(void)
+{
+#ifdef AP_PASSWORD
+    return AP_PASSWORD;
+#else
+    return kDefaultApPassword;
+#endif
+}
+
+static bool isStationConnected(void)
+{
+    return WiFi.status() == WL_CONNECTED;
+}
+
+static bool isAccessPointActive(void)
+{
+    const int status = WiFi.status();
+    return status == WL_AP_LISTENING || status == WL_AP_CONNECTED;
+}
+
+static bool isNetworkReady(void)
+{
+    return isStationConnected() || isAccessPointActive();
+}
+
+static const char* activeWifiModeLabel(void)
+{
+    return gUseAccessPointMode ? "AP" : "STA";
+}
+
 static String buildDefaultStatusText(void)
 {
     String status = "webwings.nl 2026";
-    if (WiFi.status() == WL_CONNECTED) {
+    if (isNetworkReady()) {
         status += " (IP:";
         status += ipToString(WiFi.localIP());
         status += ")";
@@ -121,16 +172,16 @@ static String buildDefaultStatusText(void)
     return status;
 }
 
-static void connectWifiAfterBootRefresh(void)
+static bool connectWifiAfterBootRefresh(void)
 {
     if (WiFi.status() == WL_NO_MODULE) {
         Serial.println(F("WiFi module not detected."));
-        return;
+        return false;
     }
 
     if (strcmp(WIFI_SSID, "YOUR_WIFI_SSID") == 0 || strcmp(WIFI_PASSWORD, "YOUR_WIFI_PASSWORD") == 0) {
         Serial.println(F("WiFi credentials not configured in secrets.h."));
-        return;
+        return false;
     }
 
     Serial.print(F("Connecting to WiFi: "));
@@ -160,14 +211,90 @@ static void connectWifiAfterBootRefresh(void)
     Serial.println();
     if (WiFi.status() == WL_CONNECTED) {
         printWifiStatus();
+        return true;
     } else {
         Serial.println(F("WiFi connection failed (timeout)."));
+        return false;
     }
+}
+
+static bool startAccessPointMode(void)
+{
+    if (WiFi.status() == WL_NO_MODULE) {
+        Serial.println(F("WiFi module not detected."));
+        return false;
+    }
+
+    const char* apSsid = getAccessPointSsid();
+    const char* apPassword = getAccessPointPassword();
+
+    Serial.print(F("Starting Access Point: "));
+    Serial.println(apSsid);
+
+    int status = WL_IDLE_STATUS;
+    if (strlen(apPassword) >= 8) {
+        status = WiFi.beginAP(apSsid, apPassword);
+    } else {
+        status = WiFi.beginAP(apSsid);
+    }
+
+    unsigned long startMs = millis();
+    while (status != WL_AP_LISTENING && status != WL_AP_CONNECTED && (millis() - startMs) < kWifiConnectTimeoutMs) {
+        Serial.print('.');
+        delay(kWifiConnectPollMs);
+        status = WiFi.status();
+    }
+
+    Serial.println();
+    if (status == WL_AP_LISTENING || status == WL_AP_CONNECTED) {
+        Serial.print(F("AP active. Connect to SSID: "));
+        Serial.println(apSsid);
+        Serial.print(F("AP IP address: "));
+        Serial.println(WiFi.localIP());
+        return true;
+    }
+
+    Serial.println(F("Failed to start Access Point mode."));
+    return false;
+}
+
+static bool applyNetworkMode(void)
+{
+    gWebServerStarted = false;
+    WiFi.disconnect();
+    delay(200);
+
+    if (gUseAccessPointMode) {
+        return startAccessPointMode();
+    }
+
+    return connectWifiAfterBootRefresh();
+}
+
+static bool switchNetworkMode(const bool useAccessPointMode)
+{
+    const bool previousMode = gUseAccessPointMode;
+    gUseAccessPointMode = useAccessPointMode;
+    bool ok = applyNetworkMode();
+    if (!ok) {
+        // Keep device reachable by restoring previous mode if switch fails.
+        gUseAccessPointMode = previousMode;
+        applyNetworkMode();
+    }
+
+    if (ok) {
+        Serial.print(F("Network mode active: "));
+        Serial.println(activeWifiModeLabel());
+    } else {
+        Serial.print(F("Network mode switch failed, kept mode: "));
+        Serial.println(activeWifiModeLabel());
+    }
+    return ok;
 }
 
 static bool setStatusToCurrentIp(void)
 {
-    if (WiFi.status() != WL_CONNECTED) {
+    if (!isNetworkReady()) {
         copyStringToBuffer(String("WiFi disconnected"), gStatusText, kStatusTextMax);
         return false;
     }
@@ -182,6 +309,25 @@ static void copyStringToBuffer(const String& src, char* dst, size_t dstSize)
 {
     src.toCharArray(dst, dstSize);
     dst[dstSize - 1] = '\0';
+}
+
+static void applyConfiguredDisplayDefaults(void)
+{
+    copyStringToBuffer(String(TITLE), gTitleText, kTitleTextMax);
+
+    if (gUseAccessPointMode) {
+        copyStringToBuffer(String(kApModeBootStatus), gStatusText, kStatusTextMax);
+    } else {
+        copyStringToBuffer(String(STATUS), gStatusText, kStatusTextMax);
+    }
+
+    String defaultContent = String(CONTENT);
+    defaultContent.trim();
+    if (defaultContent.equalsIgnoreCase("LOGO")) {
+        gContentText[0] = '\0';
+    } else {
+        copyStringToBuffer(defaultContent, gContentText, kContentTextMax);
+    }
 }
 
 static int hexDigitToInt(const char ch)
@@ -317,6 +463,8 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     const String safeTitle = htmlEscape(String(gTitleText));
     const String safeContent = htmlEscape(String(gContentText));
     const String safeMessage = htmlEscape(message);
+    const char* modeLabel = gUseAccessPointMode ? "AP" : "STA";
+    const char* targetMode = gUseAccessPointMode ? "STA" : "AP";
 
     client.println(F("HTTP/1.1 200 OK"));
     client.println(F("Content-Type: text/html; charset=utf-8"));
@@ -326,8 +474,11 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.println(F("<!doctype html>"));
     client.println(F("<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"));
     client.println(F("<title>Waveshare Control</title>"));
-    client.println(F("<style>body{font-family:Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;}input,textarea,button{width:100%;font-size:16px;box-sizing:border-box;margin-top:.5rem;padding:.7rem;}button{cursor:pointer;}label{font-weight:600;display:block;margin-top:1rem;}.msg{margin:1rem 0;padding:.7rem;border:1px solid #8bc28b;background:#eef8ee;}small{display:block;margin-top:.5rem;color:#444;line-height:1.4;}</style>"));
+    client.println(F("<style>body{font-family:Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;}input,textarea,button{width:100%;font-size:16px;box-sizing:border-box;margin-top:.5rem;padding:.7rem;}button{cursor:pointer;}label{font-weight:600;display:block;margin-top:1rem;}.msg{margin:1rem 0;padding:.7rem;border:1px solid #8bc28b;background:#eef8ee;}small{display:block;margin-top:.5rem;color:#444;line-height:1.4;}.mode{margin-top:1rem;padding:.6rem;border:1px dashed #999;background:#f8f8f8;}</style>"));
     client.println(F("</head><body><h1>Waveshare Display</h1>"));
+    client.print(F("<div class='mode'>Actieve netwerkmodus: <strong>"));
+    client.print(modeLabel);
+    client.println(F("</strong></div>"));
 
     if (safeMessage.length() > 0) {
         client.print(F("<div class='msg'>"));
@@ -346,19 +497,46 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
 
     client.println(F("<small>Ondersteund: _rood_, |vet| en \\n voor nieuwe regel. Lege inhoud toont de logo-weergave.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
+
+    client.println(F("<form method='POST' action='/'>"));
+    client.print(F("<input type='hidden' name='mode' value='"));
+    client.print(targetMode);
+    client.println(F("'>"));
+    client.print(F("<button type='submit'>Schakel naar "));
+    client.print(targetMode);
+    client.println(F(" mode</button></form>"));
+
     client.println(F("</body></html>"));
+}
+
+static void sendRedirectToRoot(WiFiClient& client)
+{
+    const String location = String("http://") + ipToString(WiFi.localIP()) + "/";
+
+    client.println(F("HTTP/1.1 302 Found"));
+    client.print(F("Location: "));
+    client.println(location);
+    client.println(F("Cache-Control: no-store, no-cache, must-revalidate, max-age=0"));
+    client.println(F("Pragma: no-cache"));
+    client.println(F("Connection: close"));
+    client.println();
 }
 
 static void startWebServerIfConnected(void)
 {
-    if (gWebServerStarted || WiFi.status() != WL_CONNECTED) {
+    if (gWebServerStarted || !isNetworkReady()) {
         return;
     }
 
     gWebServer.begin();
     gWebServerStarted = true;
-    Serial.print(F("Web UI ready: http://"));
+    Serial.print(F("Web UI ready ("));
+    Serial.print(activeWifiModeLabel());
+    Serial.print(F("): http://"));
     Serial.println(WiFi.localIP());
+    if (gUseAccessPointMode) {
+        Serial.println(F("AP captive redirect active: unknown GET paths redirect to /"));
+    }
 }
 
 static void handleWebClient(void)
@@ -414,6 +592,11 @@ static void handleWebClient(void)
 
     String message = "";
     bool didUpdate = false;
+    bool modeFieldPresent = false;
+    bool modeFieldValid = false;
+    bool modeAlreadyActive = false;
+    bool shouldSwitchMode = false;
+    bool switchToApMode = gUseAccessPointMode;
 
     if ((isPostRoot || isPostApiUpdate) && contentLength > 0) {
         const int bodyLimit = (contentLength > static_cast<int>(kHttpBodyMax)) ? static_cast<int>(kHttpBodyMax) : contentLength;
@@ -437,6 +620,7 @@ static void handleWebClient(void)
         const bool hasTitle = hasFormField(body, "title");
         const bool hasContent = hasFormField(body, "content");
         const bool hasStatus = hasFormField(body, "status");
+        const bool hasMode = hasFormField(body, "mode");
 
         if (hasTitle) {
             const String newTitle = urlDecode(getFormField(body, "title"));
@@ -462,12 +646,45 @@ static void handleWebClient(void)
             }
         }
 
+        if (hasMode) {
+            modeFieldPresent = true;
+            String newMode = urlDecode(getFormField(body, "mode"));
+            newMode.trim();
+            newMode.toUpperCase();
+
+            if (newMode == "AP") {
+                modeFieldValid = true;
+                switchToApMode = true;
+                modeAlreadyActive = gUseAccessPointMode;
+                shouldSwitchMode = !modeAlreadyActive;
+            } else if (newMode == "STA") {
+                modeFieldValid = true;
+                switchToApMode = false;
+                modeAlreadyActive = !gUseAccessPointMode;
+                shouldSwitchMode = !modeAlreadyActive;
+            }
+        }
+
         didUpdate = hasTitle || hasContent || hasStatus;
         if (didUpdate) {
             runDisplayCycle();
             message = "Display bijgewerkt via web POST.";
             Serial.println(F("OK: web POST applied."));
-        } else {
+        }
+
+        if (modeFieldPresent) {
+            if (!modeFieldValid) {
+                message = "Ongeldige mode. Gebruik mode=AP of mode=STA.";
+            } else if (modeAlreadyActive) {
+                message = "Geselecteerde netwerkmodus is al actief.";
+            } else if (shouldSwitchMode) {
+                if (didUpdate) {
+                    message = "Display bijgewerkt. Netwerkmodus wordt nu omgeschakeld.";
+                } else {
+                    message = "Netwerkmodus wordt nu omgeschakeld.";
+                }
+            }
+        } else if (!didUpdate) {
             message = "Geen velden ontvangen (gebruik title=, content= en/of status=).";
         }
     } else if (isPostRoot || isPostApiUpdate) {
@@ -499,6 +716,8 @@ static void handleWebClient(void)
         client.println(F("\"}"));
     } else if (isGetRoot || isPostRoot) {
         sendWebFormPage(client, message);
+    } else if (gUseAccessPointMode && method == "GET") {
+        sendRedirectToRoot(client);
     } else {
         client.println(F("HTTP/1.1 404 Not Found"));
         client.println(F("Content-Type: text/plain; charset=utf-8"));
@@ -509,6 +728,16 @@ static void handleWebClient(void)
 
     delay(1);
     client.stop();
+
+    if (shouldSwitchMode) {
+        Serial.print(F("Web requested mode switch to "));
+        Serial.println(switchToApMode ? F("AP") : F("STA"));
+        const bool switched = switchNetworkMode(switchToApMode);
+        if (!switched) {
+            Serial.println(F("Web mode switch failed; kept previous mode."));
+        }
+        startWebServerIfConnected();
+    }
 }
 
 static void drawCenteredText(UWORD yTop, UWORD areaHeight, const char* text, sFONT* font, UWORD textColor)
@@ -836,6 +1065,9 @@ static void printSerialHelp(void)
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (Font24, left aligned)"));
     Serial.println(F("  STATUS=IP       Show local WiFi IP in status bar"));
+    Serial.println(F("  WIFI=AP         Switch to Access Point mode"));
+    Serial.println(F("  WIFI=STA        Switch to normal WiFi mode (router)"));
+    Serial.println(F("  WIFI=MODE       Show active network mode"));
     Serial.println(F("  REFRESH         Redraw display with current values"));
     Serial.println(F("  HELP            Show this help"));
 }
@@ -909,6 +1141,28 @@ static void processSerialCommand(const String& input)
         return;
     }
 
+    if (upper == "WIFI=MODE") {
+        Serial.print(F("OK: wifi_mode="));
+        Serial.println(activeWifiModeLabel());
+        return;
+    }
+
+    if (upper == "WIFI=AP") {
+        const bool ok = switchNetworkMode(true);
+        startWebServerIfConnected();
+        Serial.print(F("OK: wifi_mode="));
+        Serial.println(ok ? F("AP") : F("AP (failed)"));
+        return;
+    }
+
+    if (upper == "WIFI=STA") {
+        const bool ok = switchNetworkMode(false);
+        startWebServerIfConnected();
+        Serial.print(F("OK: wifi_mode="));
+        Serial.println(ok ? F("STA") : F("STA (failed)"));
+        return;
+    }
+
     Serial.print(F("Unknown command: "));
     Serial.println(cmd);
     Serial.println(F("Type HELP for command list."));
@@ -950,8 +1204,9 @@ void setup()
     logStatus("DEV_ModuleInit done");
 
     logBusyPins("Initial pin read");
+    applyConfiguredDisplayDefaults();
     runDisplayCycle();
-    connectWifiAfterBootRefresh();
+    switchNetworkMode(gUseAccessPointMode);
     startWebServerIfConnected();
 
     Serial.println(F("Display command interface ready. Type HELP."));

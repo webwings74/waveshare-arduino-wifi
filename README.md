@@ -6,6 +6,11 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 
 ## Recent Updates (2026-06-09)
 
+- Added `config.h` for central startup configuration:
+    - `MODE=AP` or `MODE=STA`
+    - `TITLE`, `CONTENT`, `STATUS` display defaults
+- Added dual network mode support: Access Point (AP) and normal WiFi client (STA).
+- Added serial commands to switch network mode at runtime: `WIFI=AP`, `WIFI=STA`, `WIFI=MODE`.
 - Added WiFi boot connection using credentials from `secrets.h`.
 - Added `STATUS=IP` command to show current local IP address in the status bar.
 - Added styled `CONTENT` markup with `_text_` rendering in red.
@@ -58,13 +63,64 @@ Notes:
 
 ## Web Interface
 
-When WiFi is connected, the sketch also starts a minimal web server on port 80.
+When network mode is active (AP or STA), the sketch starts a minimal web server on port 80.
 
-1. Open the board IP in your browser (shown on Serial as `Web UI ready: http://<ip>`).
+1. Open the board IP in your browser (shown on Serial as `Web UI ready (<mode>): http://<ip>`).
 2. Fill in `Titel` and/or `Inhoud`.
 3. Click `POST`.
 
 On POST, the sketch applies the values exactly as if `TITLE=<text>` and `CONTENT=<text>` were sent over Serial, then refreshes the display.
+
+The web page also shows a mode-switch button:
+
+- In AP mode: button to switch to STA mode.
+- In STA mode: button to switch to AP mode.
+
+If switching fails (for example invalid/missing STA credentials), the firmware keeps the previous mode so the device remains reachable.
+
+## Network Modes (AP and STA)
+
+The firmware supports two WiFi modes:
+
+- `AP` mode: the board creates its own WiFi network and hosts the web UI/API directly.
+- `STA` mode: the board connects to your existing router/network and hosts the web UI/API on its local IP.
+
+Default boot behavior is configured in `config.h` via `MODE=AP` or `MODE=STA`.
+
+Serial commands to switch mode at runtime:
+
+- `WIFI=AP`: switch to Access Point mode.
+- `WIFI=STA`: switch to normal WiFi client mode.
+- `WIFI=MODE`: print the active mode (`AP` or `STA`).
+
+AP defaults (when not overridden in `secrets.h`):
+
+- SSID: `Waveshare-AP`
+- Password: `waveshare123`
+
+AP mode includes a captive-portal style redirect:
+
+- In AP mode, unknown `GET` paths are redirected to `http://<board-ip>/`.
+- On many phones/laptops this triggers the automatic sign-in page after joining the AP, so users land directly on the edit page.
+
+## Startup Config (config.h)
+
+Use `config.h` to set network startup mode and display defaults:
+
+```c
+#define MODE AP
+#define TITLE "Waveshare"
+#define CONTENT "LOGO"
+#define STATUS "webwings.nl 2026"
+```
+
+Notes:
+
+- `MODE AP` boots as Access Point.
+- `MODE STA` boots as normal router/client WiFi mode.
+- In `MODE AP`, the boot status bar is set to `webwings.nl 2026 (Access Point Mode)`.
+- `CONTENT "LOGO"` shows the centered logo by default.
+- Any other `CONTENT` value is used as default content text.
 
 ### HTTP POST From Another Device
 
@@ -148,11 +204,12 @@ echo '{"title":"CLI","content":"Test","status":""}' | python3 example-json.py --
 
 ## WiFi Credentials
 
-For WiFi functionality, this project uses a local `secrets.h` file with your network credentials.
+For WiFi functionality, this project uses a local `secrets.h` file.
 
 1. Copy `secrets-example.h` to `secrets.h`.
-2. Set `WIFI_SSID` and `WIFI_PASSWORD` in `secrets.h`.
-3. Keep `secrets.h` local only.
+2. Set `WIFI_SSID` and `WIFI_PASSWORD` for STA mode in `secrets.h`.
+3. Optionally set `AP_SSID` and `AP_PASSWORD` to override AP defaults.
+4. Keep `secrets.h` local only.
 
 `secrets.h` is ignored by Git via `.gitignore`, so it is safe to keep your real credentials out of GitHub.
 
@@ -223,6 +280,7 @@ If upload fails with "serial port busy":
 ## Repository Contents
 
 - `waveshare-arduino-wifi.ino`: main sketch
+- `config.h`: startup mode and default display values
 - `example-post.py`: interactive fire-and-forget API client
 - `example-json.py`: JSON-based CLI API client
 - `secrets-example.h`: template for local WiFi credentials
