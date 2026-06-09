@@ -59,16 +59,16 @@ Notes:
 - "No line ending" mode is also supported via idle timeout parsing.
 - `CONTENT=<text>` supports up to 256 characters (longer input is truncated).
 - `STATUS=IP` shows `WiFi disconnected` when no WiFi connection is available.
-- Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=Dit is _rood_ en dit is zwart`).
-- Text between pipes in `CONTENT` is rendered extra bold with overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=Dit is |extra vet|`).
-- Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Regel 1\nRegel 2`).
+- Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=This is _red_ and this is black`).
+- Text between pipes in `CONTENT` is rendered extra bold with overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=This is |extra bold|`).
+- Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Line 1\nLine 2`).
 
 ## Web Interface
 
 When network mode is active (AP or STA), the sketch starts a minimal web server on port 80.
 
 1. Open the board IP in your browser (shown on Serial as `Web UI ready (<mode>): http://<ip>`).
-2. Fill in `Titel` and/or `Inhoud`.
+2. Fill in `Title` and/or `Content`.
 3. Click `POST`.
 
 On POST, the sketch applies the values exactly as if `TITLE=<text>` and `CONTENT=<text>` were sent over Serial, then refreshes the display.
@@ -171,15 +171,15 @@ Examples:
 ```bash
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "title=Nieuwe Titel"
+    -d "title=New Title"
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "content=Dit is _rood_ en |vet|"
+    -d "content=This is _red_ and |bold|"
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "title=Web Update&content=Regel 1\\nRegel 2&status="
+    -d "title=Web Update&content=Line 1\\nLine 2&status="
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
@@ -194,11 +194,11 @@ import requests
 arduino_url = "http://<arduino-ip>/api/update"
 
 # Update only title
-r1 = requests.post(arduino_url, data={"title": "Python Titel"}, timeout=5)
+r1 = requests.post(arduino_url, data={"title": "Python Title"}, timeout=5)
 print(r1.status_code, r1.text)
 
 # Update only content
-r2 = requests.post(arduino_url, data={"content": "_Rood_ en |vet| via Python"}, timeout=5)
+r2 = requests.post(arduino_url, data={"content": "_Red_ and |bold| via Python"}, timeout=5)
 print(r2.status_code, r2.text)
 
 # Reset status to default + current board IP
@@ -210,7 +210,7 @@ print(r3.status_code, r3.text)
 
 Two helper scripts are included for quick testing from another device:
 
-- `tools/example-post.py`: interactive prompts for `Titel`, `Inhoud`, and `Status`, then sends a fire-and-forget POST to `/api/update`.
+- `tools/example-post.py`: interactive prompts for `Title`, `Content`, and `Status`, then sends a fire-and-forget POST to `/api/update`.
 - `tools/example-json.py`: accepts JSON input via `--json`, `--json-file`, or `--stdin` and posts `title`, `content`, and/or `status`.
 
 Examples:
@@ -218,7 +218,7 @@ Examples:
 ```bash
 python3 tools/example-post.py
 
-python3 tools/example-json.py --json '{"title":"Hallo","content":"_Rood_","status":""}'
+python3 tools/example-json.py --json '{"title":"Hello","content":"_Red_","status":""}'
 
 echo '{"title":"CLI","content":"Test","status":""}' | python3 tools/example-json.py --stdin
 ```

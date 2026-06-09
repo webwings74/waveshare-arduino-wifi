@@ -2,9 +2,9 @@
 """CLI tool to send JSON-driven updates to the Arduino display API.
 
 Examples:
-  python3 example-json.py --json '{"title":"Hallo","content":"_Rood_"}'
-  python3 example-json.py --json-file payload.json
-  echo '{"title":"CLI","status":""}' | python3 example-json.py --stdin
+    python3 tools/example-json.py --json '{"title":"Hello","content":"_Red_"}'
+    python3 tools/example-json.py --json-file payload.json
+    echo '{"title":"CLI","status":""}' | python3 tools/example-json.py --stdin
 """
 
 import argparse

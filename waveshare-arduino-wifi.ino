@@ -569,7 +569,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.print(F("</head><body><h1>"));
     client.print(safeWebTitle);
     client.println(F("</h1>"));
-    client.print(F("<div class='mode'>Actieve netwerkmodus: <strong>"));
+    client.print(F("<div class='mode'>Active network mode: <strong>"));
     client.print(modeLabel);
     client.println(F("</strong></div>"));
 
@@ -580,22 +580,22 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     }
 
     client.println(F("<form method='POST' action='/'>"));
-    client.print(F("<label for='title'>Titel</label><input id='title' name='title' type='text' maxlength='63' value='"));
+    client.print(F("<label for='title'>Title</label><input id='title' name='title' type='text' maxlength='63' value='"));
     client.print(safeTitle);
     client.println(F("'>"));
 
-    client.print(F("<label for='content'>Inhoud</label><textarea id='content' name='content' rows='7' maxlength='256'>"));
+    client.print(F("<label for='content'>Content</label><textarea id='content' name='content' rows='7' maxlength='256'>"));
     client.print(safeContent);
     client.println(F("</textarea>"));
 
-    client.println(F("<small>Ondersteund: _rood_, |vet| (extra vet) en \\n voor nieuwe regel. Lege inhoud toont de logo-weergave.</small>"));
+    client.println(F("<small>Supported: _red_, |bold| (extra bold), and \\n for a new line. Empty content shows the logo view.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
 
     client.println(F("<form method='POST' action='/'>"));
     client.print(F("<input type='hidden' name='mode' value='"));
     client.print(targetMode);
     client.println(F("'>"));
-    client.print(F("<button type='submit'>Schakel naar "));
+    client.print(F("<button type='submit'>Switch to "));
     client.print(targetMode);
     client.println(F(" mode</button></form>"));
 
@@ -765,29 +765,29 @@ static void handleWebClient(void)
         didUpdate = hasTitle || hasContent || hasStatus;
         if (didUpdate) {
             runDisplayCycle();
-            message = "Display bijgewerkt via web POST.";
+            message = "Display updated via web POST.";
             Serial.println(F("OK: web POST applied."));
         }
 
         if (modeFieldPresent) {
             if (!modeFieldValid) {
-                message = "Ongeldige mode. Gebruik mode=AP of mode=STA.";
+                message = "Invalid mode. Use mode=AP or mode=STA.";
             } else if (modeAlreadyActive) {
-                message = "Geselecteerde netwerkmodus is al actief.";
+                message = "Selected network mode is already active.";
             } else if (shouldSwitchMode) {
                 if (didUpdate) {
-                    message = "Display bijgewerkt. Netwerkmodus wordt nu omgeschakeld.";
+                    message = "Display updated. Network mode will now switch.";
                 } else {
-                    message = "Netwerkmodus wordt nu omgeschakeld.";
+                    message = "Network mode will now switch.";
                 }
             }
         } else if (!didUpdate) {
-            message = "Geen velden ontvangen (gebruik title=, content= en/of status=).";
+            message = "No fields received (use title=, content=, and/or status=).";
         }
     } else if (isPostRoot || isPostApiUpdate) {
-        message = "Lege POST-body ontvangen.";
+        message = "Empty POST body received.";
     } else if (!isGetRoot) {
-        message = "Alleen GET op / en POST op / of /api/update wordt ondersteund.";
+        message = "Only GET on / and POST on / or /api/update are supported.";
     }
 
     if (isPostApiUpdate) {

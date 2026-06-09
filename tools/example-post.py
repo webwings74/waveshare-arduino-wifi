@@ -11,11 +11,11 @@ def send_fire_and_forget(url: str, payload: dict[str, str], timeout: float = 3.0
     parsed = urlparse(url)
 
     if parsed.scheme != "http":
-        raise ValueError("Alleen http:// wordt ondersteund door dit voorbeeldscript.")
+        raise ValueError("Only http:// is supported by this example script.")
 
     host = parsed.hostname
     if not host:
-        raise ValueError("Ongeldige URL: host ontbreekt.")
+        raise ValueError("Invalid URL: missing host.")
 
     port = parsed.port or 80
     path = parsed.path or "/"
@@ -44,9 +44,9 @@ def main() -> None:
     print(f"Target: {ARDUINO_URL}")
     print()
 
-    title = input("Titel: ").strip()
-    content = input("Inhoud: ").strip()
-    status = input("Status (leeg = webwings.nl 2026 + IP): ").strip()
+    title = input("Title: ").strip()
+    content = input("Content: ").strip()
+    status = input("Status (empty = webwings.nl 2026 + IP): ").strip()
 
     payload = {
         "title": title,
@@ -57,10 +57,10 @@ def main() -> None:
     try:
         send_fire_and_forget(ARDUINO_URL, payload)
         print()
-        print("POST verzonden. Script stopt direct zonder op response te wachten.")
+        print("POST sent. Script exits immediately without waiting for a response.")
     except (OSError, ValueError) as err:
         print()
-        print(f"Netwerkfout: {err}")
+        print(f"Network error: {err}")
 
 
 if __name__ == "__main__":
