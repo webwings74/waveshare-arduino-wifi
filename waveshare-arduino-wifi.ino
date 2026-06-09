@@ -31,6 +31,7 @@ static const char kDefaultApSsid[] = "Waveshare-AP";
 static const char kDefaultApPassword[] = "waveshare123";
 static const char kApModeBootStatus[] = "webwings.nl 2026 (Access Point Mode)";
 static const UWORD kBoldOffsetPx = 2;
+static const UWORD kExtraBoldOffsetPx = 1;
 static const unsigned long kHttpReadTimeoutMs = 3000;
 static const size_t kHttpBodyMax = 512;
 
@@ -495,7 +496,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.print(safeContent);
     client.println(F("</textarea>"));
 
-    client.println(F("<small>Ondersteund: _rood_, |vet| en \\n voor nieuwe regel. Lege inhoud toont de logo-weergave.</small>"));
+    client.println(F("<small>Ondersteund: _rood_, |vet|, ~extra vet~ en \\n voor nieuwe regel. Lege inhoud toont de logo-weergave.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
 
     client.println(F("<form method='POST' action='/'>"));
@@ -780,9 +781,11 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
     char normalized[kContentTextMax];
     bool redMask[kContentTextMax];
     bool boldMask[kContentTextMax];
+    bool extraBoldMask[kContentTextMax];
     size_t normalizedLen = 0;
     bool inRedSegment = false;
     bool inBoldSegment = false;
+    bool inExtraBoldSegment = false;
     bool prevWasSpace = false;
 
     for (size_t i = 0; i < static_cast<size_t>(source.length()) && normalizedLen < (kContentTextMax - 1); i++) {
@@ -797,6 +800,11 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             continue;
         }
 
+        if (ch == '~') {
+            inExtraBoldSegment = !inExtraBoldSegment;
+            continue;
+        }
+
         if (ch == '\\' && (i + 1) < static_cast<size_t>(source.length()) && source[i + 1] == 'n') {
             while (normalizedLen > 0 && normalized[normalizedLen - 1] == ' ') {
                 normalizedLen--;
@@ -805,6 +813,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 normalized[normalizedLen] = '\n';
                 redMask[normalizedLen] = false;
                 boldMask[normalizedLen] = false;
+                extraBoldMask[normalizedLen] = false;
                 normalizedLen++;
             }
             prevWasSpace = false;
@@ -822,6 +831,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                     normalized[normalizedLen] = '\n';
                     redMask[normalizedLen] = false;
                     boldMask[normalizedLen] = false;
+                    extraBoldMask[normalizedLen] = false;
                     normalizedLen++;
                 }
                 prevWasSpace = false;
@@ -839,6 +849,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             normalized[normalizedLen] = ' ';
             redMask[normalizedLen] = false;
             boldMask[normalizedLen] = false;
+            extraBoldMask[normalizedLen] = false;
             normalizedLen++;
             prevWasSpace = true;
             continue;
@@ -847,6 +858,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         normalized[normalizedLen] = ch;
         redMask[normalizedLen] = inRedSegment;
         boldMask[normalizedLen] = inBoldSegment;
+        extraBoldMask[normalizedLen] = inExtraBoldSegment;
         normalizedLen++;
         prevWasSpace = false;
     }
@@ -950,8 +962,9 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         while (runStart < lineEnd) {
             const bool runIsRed = redMask[runStart];
             const bool runIsBold = boldMask[runStart];
+            const bool runIsExtraBold = extraBoldMask[runStart];
             size_t runEnd = runStart + 1;
-            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold) {
+            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold && extraBoldMask[runEnd] == runIsExtraBold) {
                 runEnd++;
             }
 
@@ -966,6 +979,20 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 Paint_DrawString_EN(runX, lineY, runText, font, WHITE, color);
                 if (runIsBold) {
                     Paint_DrawString_EN(runX + kBoldOffsetPx, lineY, runText, font, WHITE, color);
+                }
+                if (runIsExtraBold) {
+                    if ((runX + kExtraBoldOffsetPx) < kDisplayWidth) {
+                        Paint_DrawString_EN(runX + kExtraBoldOffsetPx, lineY, runText, font, WHITE, color);
+                    }
+                    if (runX >= kExtraBoldOffsetPx) {
+                        Paint_DrawString_EN(runX - kExtraBoldOffsetPx, lineY, runText, font, WHITE, color);
+                    }
+                    if ((lineY + kExtraBoldOffsetPx) < kDisplayHeight) {
+                        Paint_DrawString_EN(runX, lineY + kExtraBoldOffsetPx, runText, font, WHITE, color);
+                    }
+                    if (lineY >= kExtraBoldOffsetPx) {
+                        Paint_DrawString_EN(runX, lineY - kExtraBoldOffsetPx, runText, font, WHITE, color);
+                    }
                 }
             }
 
@@ -1061,7 +1088,7 @@ static void printSerialHelp(void)
 {
     Serial.println(F("Commands:"));
     Serial.println(F("  TITLE=<text>    Update title (Font64)"));
-    Serial.println(F("  CONTENT=<text>  Update content (Font48, max 256 chars; _red_, |bold|, \\n line break)"));
+    Serial.println(F("  CONTENT=<text>  Update content (Font48, max 256 chars; _red_, |bold|, ~extra~, \\n line break)"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (Font24, left aligned)"));
     Serial.println(F("  STATUS=IP       Show local WiFi IP in status bar"));

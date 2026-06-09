@@ -59,6 +59,7 @@ Notes:
 - `STATUS=IP` shows `WiFi disconnected` when no WiFi connection is available.
 - Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=Dit is _rood_ en dit is zwart`).
 - Text between pipes in `CONTENT` is rendered bold by drawing twice with horizontal offset (example: `CONTENT=Dit is |vet|`).
+- Text between tildes in `CONTENT` is rendered extra bold with extra overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=Dit is ~extra vet~`).
 - Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Regel 1\nRegel 2`).
 
 ## Web Interface
