@@ -1,0 +1,5 @@
+# Local WiFi credentials
+secrets.h
+
+# Local editor/OS files
+.DS_Store

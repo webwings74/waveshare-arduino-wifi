@@ -1,0 +1,206 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-board-list",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"board",
+				"list"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-compile-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"compile",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		},
+		{
+			"label": "arduino-upload-waveshare",
+			"type": "shell",
+			"command": "arduino-cli",
+			"args": [
+				"upload",
+				"-b",
+				"arduino:renesas_uno:unor4wifi",
+				"-p",
+				"/dev/cu.usbmodemF412FA9FE9E82",
+				"/Users/rvdveldt/Documents/Arduino/waveshare-arduino-wifi/waveshare-arduino-wifi.ino"
+			]
+		}
+	]
+}
