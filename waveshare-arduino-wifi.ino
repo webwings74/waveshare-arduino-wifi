@@ -114,8 +114,9 @@ static String buildDefaultStatusText(void)
 {
     String status = "webwings.nl 2026";
     if (WiFi.status() == WL_CONNECTED) {
-        status += " ";
+        status += " (IP:";
         status += ipToString(WiFi.localIP());
+        status += ")";
     }
     return status;
 }

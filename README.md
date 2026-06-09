@@ -51,6 +51,7 @@ Notes:
 - Commands are processed on newline.
 - "No line ending" mode is also supported via idle timeout parsing.
 - `CONTENT=<text>` supports up to 256 characters (longer input is truncated).
+- `STATUS=IP` shows `WiFi disconnected` when no WiFi connection is available.
 - Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=Dit is _rood_ en dit is zwart`).
 - Text between pipes in `CONTENT` is rendered bold by drawing twice with horizontal offset (example: `CONTENT=Dit is |vet|`).
 - Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Regel 1\nRegel 2`).
@@ -72,7 +73,8 @@ For automation from another device in the same network, use:
 - `POST /api/update`
 - `Content-Type: application/x-www-form-urlencoded`
 - Body fields: `title`, `content` and/or `status` (all optional, at least one required)
-- If `status` is sent empty (`status=`), the status bar is set to `webwings.nl 2026` followed by the current board IP address.
+- If `status` is sent empty (`status=`), the status bar is set to `webwings.nl 2026 (IP:<board-ip>)` when WiFi is connected.
+- If WiFi is not connected, empty `status` falls back to `webwings.nl 2026`.
 
 Examples:
 
