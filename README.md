@@ -13,6 +13,7 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 - Added serial commands to switch network mode at runtime: `WIFI=AP`, `WIFI=STA`, `WIFI=MODE`.
 - Added WiFi boot connection using credentials from `secrets.h`.
 - Added `STATUS=IP` command to show current local IP address in the status bar.
+- Added automatic status text `webwings.nl 2026 (AP: <ip>)` or `webwings.nl 2026 (STA: <ip>)` on `CONTENT` updates only (not during `setup()`).
 - Added styled `CONTENT` markup with `_text_` rendering in red.
 - Added styled `CONTENT` markup with `|text|` rendering extra bold.
 - Added styled `CONTENT` markup where `\n` forces a line break.
@@ -71,6 +72,13 @@ When network mode is active (AP or STA), the sketch starts a minimal web server 
 
 On POST, the sketch applies the values exactly as if `TITLE=<text>` and `CONTENT=<text>` were sent over Serial, then refreshes the display.
 
+When `CONTENT` is updated (and no explicit `status` field is sent), the status bar is automatically set to:
+
+- `webwings.nl 2026 (AP: <board-ip>)` in AP mode
+- `webwings.nl 2026 (STA: <board-ip>)` in STA mode
+
+This automatic AP/STA status update is not performed during `setup()` boot rendering.
+
 The web page also shows a mode-switch button:
 
 - In AP mode: button to switch to STA mode.
@@ -119,6 +127,7 @@ Notes:
 - `MODE AP` boots as Access Point.
 - `MODE STA` boots as normal router/client WiFi mode.
 - In `MODE AP`, the boot status bar is set to `webwings.nl 2026 (Access Point Mode)`.
+- Boot rendering keeps configured/default status text; AP/STA `<ip>` status is only auto-set on runtime `CONTENT` updates.
 - `CONTENT "LOGO"` shows the centered logo by default.
 - Any other `CONTENT` value is used as default content text.
 

@@ -172,6 +172,21 @@ static String buildDefaultStatusText(void)
     return status;
 }
 
+static bool setStatusToCurrentModeAndIp(void)
+{
+    if (!isNetworkReady()) {
+        return false;
+    }
+
+    String status = "webwings.nl 2026 (";
+    status += activeWifiModeLabel();
+    status += ": ";
+    status += ipToString(WiFi.localIP());
+    status += ")";
+    copyStringToBuffer(status, gStatusText, kStatusTextMax);
+    return true;
+}
+
 static bool connectWifiAfterBootRefresh(void)
 {
     if (WiFi.status() == WL_NO_MODULE) {
@@ -651,6 +666,10 @@ static void handleWebClient(void)
             }
         }
 
+        if (hasContent && !hasStatus) {
+            setStatusToCurrentModeAndIp();
+        }
+
         if (hasMode) {
             modeFieldPresent = true;
             String newMode = urlDecode(getFormField(body, "mode"));
@@ -1101,6 +1120,7 @@ static void printSerialHelp(void)
     Serial.println(F("Commands:"));
     Serial.println(F("  TITLE=<text>    Update title (Font64)"));
     Serial.println(F("  CONTENT=<text>  Update content (Font48, max 256 chars; _red_, |bold extra|, \\n line break)"));
+    Serial.println(F("                  Auto status: webwings.nl 2026 (AP/STA: <ip>) if network is active"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (Font24, left aligned)"));
     Serial.println(F("  STATUS=IP       Show local WiFi IP in status bar"));
@@ -1153,6 +1173,8 @@ static void processSerialCommand(const String& input)
         } else {
             copyStringToBuffer(value, gContentText, kContentTextMax);
         }
+
+        setStatusToCurrentModeAndIp();
 
         runDisplayCycle();
         if (strlen(gContentText) == 0) {
