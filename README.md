@@ -55,6 +55,56 @@ Notes:
 - Text between pipes in `CONTENT` is rendered bold by drawing twice with horizontal offset (example: `CONTENT=Dit is |vet|`).
 - Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Regel 1\nRegel 2`).
 
+## Web Interface
+
+When WiFi is connected, the sketch also starts a minimal web server on port 80.
+
+1. Open the board IP in your browser (shown on Serial as `Web UI ready: http://<ip>`).
+2. Fill in `Titel` and/or `Inhoud`.
+3. Click `POST`.
+
+On POST, the sketch applies the values exactly as if `TITLE=<text>` and `CONTENT=<text>` were sent over Serial, then refreshes the display.
+
+### HTTP POST From Another Device
+
+For automation from another device in the same network, use:
+
+- `POST /api/update`
+- `Content-Type: application/x-www-form-urlencoded`
+- Body fields: `title` and/or `content` (both optional, at least one required)
+
+Examples:
+
+```bash
+curl -X POST "http://<arduino-ip>/api/update" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "title=Nieuwe Titel"
+
+curl -X POST "http://<arduino-ip>/api/update" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "content=Dit is _rood_ en |vet|"
+
+curl -X POST "http://<arduino-ip>/api/update" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "title=Web Update&content=Regel 1\\nRegel 2"
+```
+
+Python example:
+
+```python
+import requests
+
+arduino_url = "http://<arduino-ip>/api/update"
+
+# Update only title
+r1 = requests.post(arduino_url, data={"title": "Python Titel"}, timeout=5)
+print(r1.status_code, r1.text)
+
+# Update only content
+r2 = requests.post(arduino_url, data={"content": "_Rood_ en |vet| via Python"}, timeout=5)
+print(r2.status_code, r2.text)
+```
+
 ## Hardware
 
 - Arduino UNO R4 WiFi
