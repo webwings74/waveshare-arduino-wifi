@@ -114,6 +114,23 @@ r3 = requests.post(arduino_url, data={"status": ""}, timeout=5)
 print(r3.status_code, r3.text)
 ```
 
+### CLI Helper Scripts
+
+Two helper scripts are included for quick testing from another device:
+
+- `example-post.py`: interactive prompts for `Titel`, `Inhoud`, and `Status`, then sends a fire-and-forget POST to `/api/update`.
+- `example-json.py`: accepts JSON input via `--json`, `--json-file`, or `--stdin` and posts `title`, `content`, and/or `status`.
+
+Examples:
+
+```bash
+python3 example-post.py
+
+python3 example-json.py --json '{"title":"Hallo","content":"_Rood_","status":""}'
+
+echo '{"title":"CLI","content":"Test","status":""}' | python3 example-json.py --stdin
+```
+
 ## Hardware
 
 - Arduino UNO R4 WiFi
@@ -204,6 +221,8 @@ If upload fails with "serial port busy":
 ## Repository Contents
 
 - `waveshare-arduino-wifi.ino`: main sketch
+- `example-post.py`: interactive fire-and-forget API client
+- `example-json.py`: JSON-based CLI API client
 - `secrets-example.h`: template for local WiFi credentials
 - `.gitignore`: ignores local secrets and OS-specific files
 - `README.md`: setup, runtime behavior, and serial command usage
