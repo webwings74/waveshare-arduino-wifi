@@ -17,7 +17,7 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 - Added styled `CONTENT` markup with `_text_` rendering in red.
 - Added styled `CONTENT` markup with `|text|` rendering extra bold.
 - Added styled `CONTENT` markup where `\n` forces a line break.
-- Added optional Google Font presets for content text (`Space Mono`, `Manrope`, `Anton`) via `CONTENT_FONT` in `config.h`.
+- Added optional Google Font presets for all text regions (`Space Mono`, `Manrope`, `Anton`, `Permanent Marker`) via `CONTENT_FONT` in `config.h`.
 - Added `secrets-example.h` and `.gitignore` workflow for safe GitHub usage without exposing local credentials.
 
 ## Current Functionality
@@ -122,6 +122,11 @@ Use `config.h` to set network startup mode and display defaults:
 #define CONTENT "LOGO"
 #define STATUS "webwings.nl 2026"
 #define CONTENT_FONT CONTENT_FONT_DEFAULT
+#define CONTENT_FONT_SCALE_DEFAULT 1.0f
+#define CONTENT_FONT_SCALE_SPACE_MONO 1.0f
+#define CONTENT_FONT_SCALE_MANROPE 1.0f
+#define CONTENT_FONT_SCALE_ANTON 1.5f
+#define CONTENT_FONT_SCALE_PERMANENT_MARKER 2.0f
 ```
 
 Notes:
@@ -132,11 +137,24 @@ Notes:
 - Boot rendering keeps configured/default status text; AP/STA `<ip>` status is only auto-set on runtime `CONTENT` updates.
 - `CONTENT "LOGO"` shows the centered logo by default.
 - Any other `CONTENT` value is used as default content text.
-- `CONTENT_FONT` selects a Font48 preset for content text:
+- `CONTENT_FONT` selects a preset family for title/content/status (with matching Font64/48/24 variants):
     - `CONTENT_FONT_DEFAULT`
     - `CONTENT_FONT_SPACE_MONO`
     - `CONTENT_FONT_MANROPE`
     - `CONTENT_FONT_ANTON`
+    - `CONTENT_FONT_PERMANENT_MARKER`
+- `CONTENT_FONT_SCALE_*` macros control per-preset scaling for title/content/status.
+- Decimal values are supported (for example `1.25f`, `1.5f`, `1.8f`).
+- Use scale values `>= 1.0f` (value `2.0f` doubles the rendered pixel size).
+
+## Added Fonts In epd12in48 Library
+
+Added Google Font families (ASCII tables) in `epd12in48/src`:
+
+- `Space Mono`: `font24_google_spacemono.cpp`, `font48_google_spacemono.cpp`, `font64_google_spacemono.cpp`
+- `Manrope`: `font24_google_manrope.cpp`, `font48_google_manrope.cpp`, `font64_google_manrope.cpp`
+- `Anton`: `font24_google_anton.cpp`, `font48_google_anton.cpp`, `font64_google_anton.cpp`
+- `Permanent Marker`: `font24_google_permanentmarker.cpp`, `font48_google_permanentmarker.cpp`, `font64_google_permanentmarker.cpp`
 
 ### HTTP POST From Another Device
 

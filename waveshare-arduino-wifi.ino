@@ -161,6 +161,49 @@ static const char* activeWifiModeLabel(void)
     return gUseAccessPointMode ? "AP" : "STA";
 }
 
+static uint16_t toScalePermille(float scale)
+{
+    if (scale < 0.1f) {
+        scale = 1.0f;
+    }
+    if (scale > 4.0f) {
+        scale = 4.0f;
+    }
+    return static_cast<uint16_t>(scale * 1000.0f + 0.5f);
+}
+
+static uint16_t getConfiguredTextScalePermille(void)
+{
+#if CONTENT_FONT == CONTENT_FONT_SPACE_MONO
+    const float scale = CONTENT_FONT_SCALE_SPACE_MONO;
+#elif CONTENT_FONT == CONTENT_FONT_MANROPE
+    const float scale = CONTENT_FONT_SCALE_MANROPE;
+#elif CONTENT_FONT == CONTENT_FONT_ANTON
+    const float scale = CONTENT_FONT_SCALE_ANTON;
+#elif CONTENT_FONT == CONTENT_FONT_PERMANENT_MARKER
+    const float scale = CONTENT_FONT_SCALE_PERMANENT_MARKER;
+#else
+    const float scale = CONTENT_FONT_SCALE_DEFAULT;
+#endif
+
+    return toScalePermille(scale);
+}
+
+static sFONT* getConfiguredTitleFont(void)
+{
+#if CONTENT_FONT == CONTENT_FONT_SPACE_MONO
+    return &Font64_GoogleSpaceMono;
+#elif CONTENT_FONT == CONTENT_FONT_MANROPE
+    return &Font64_GoogleManrope;
+#elif CONTENT_FONT == CONTENT_FONT_ANTON
+    return &Font64_GoogleAnton;
+#elif CONTENT_FONT == CONTENT_FONT_PERMANENT_MARKER
+    return &Font64_GooglePermanentMarker;
+#else
+    return &Font64;
+#endif
+}
+
 static sFONT* getConfiguredContentFont(void)
 {
 #if CONTENT_FONT == CONTENT_FONT_SPACE_MONO
@@ -169,8 +212,25 @@ static sFONT* getConfiguredContentFont(void)
     return &Font48_GoogleManrope;
 #elif CONTENT_FONT == CONTENT_FONT_ANTON
     return &Font48_GoogleAnton;
+#elif CONTENT_FONT == CONTENT_FONT_PERMANENT_MARKER
+    return &Font48_GooglePermanentMarker;
 #else
     return &Font48;
+#endif
+}
+
+static sFONT* getConfiguredStatusFont(void)
+{
+#if CONTENT_FONT == CONTENT_FONT_SPACE_MONO
+    return &Font24_GoogleSpaceMono;
+#elif CONTENT_FONT == CONTENT_FONT_MANROPE
+    return &Font24_GoogleManrope;
+#elif CONTENT_FONT == CONTENT_FONT_ANTON
+    return &Font24_GoogleAnton;
+#elif CONTENT_FONT == CONTENT_FONT_PERMANENT_MARKER
+    return &Font24_GooglePermanentMarker;
+#else
+    return &Font24;
 #endif
 }
 
@@ -777,25 +837,107 @@ static void handleWebClient(void)
     }
 }
 
-static void drawCenteredText(UWORD yTop, UWORD areaHeight, const char* text, sFONT* font, UWORD textColor)
+static UWORD scaledSpanFromPermille(UWORD value, uint16_t scalePermille)
 {
-    const UWORD textWidth = static_cast<UWORD>(strlen(text) * font->Width);
-    const UWORD textHeight = font->Height;
+    const uint32_t scaled = static_cast<uint32_t>(value) * static_cast<uint32_t>(scalePermille);
+    UWORD out = static_cast<UWORD>((scaled + 999U) / 1000U);
+    if (out == 0) {
+        out = 1;
+    }
+    return out;
+}
+
+static int16_t scaledOffsetFromPermille(int16_t value, uint16_t scalePermille)
+{
+    if (value == 0) {
+        return 0;
+    }
+
+    int32_t scaled = static_cast<int32_t>(value) * static_cast<int32_t>(scalePermille);
+    if (scaled >= 0) {
+        scaled = (scaled + 500) / 1000;
+    } else {
+        scaled = (scaled - 500) / 1000;
+    }
+
+    if (scaled == 0) {
+        scaled = (value > 0) ? 1 : -1;
+    }
+    return static_cast<int16_t>(scaled);
+}
+
+static void drawStringScaled(UWORD xStart, UWORD yStart, const char* text, sFONT* font, UWORD textColor, uint16_t scalePermille)
+{
+    if (scalePermille <= 1000U) {
+        Paint_DrawString_EN(xStart, yStart, text, font, WHITE, textColor);
+        return;
+    }
+
+    const uint8_t bytesPerRow = static_cast<uint8_t>((font->Width / 8) + ((font->Width % 8) ? 1 : 0));
+    UWORD cursorX = xStart;
+
+    for (size_t idx = 0; text[idx] != '\0'; idx++) {
+        const char ch = text[idx];
+        if (ch < ' ' || ch > '~') {
+            continue;
+        }
+
+        const uint32_t charOffset = static_cast<uint32_t>(ch - ' ') * font->Height * bytesPerRow;
+        const unsigned char* glyph = &font->table[charOffset];
+
+        for (UWORD row = 0; row < font->Height; row++) {
+            const unsigned char* rowPtr = glyph + static_cast<size_t>(row) * bytesPerRow;
+            for (UWORD col = 0; col < font->Width; col++) {
+                if (pgm_read_byte(rowPtr + (col / 8)) & (0x80 >> (col % 8))) {
+                    uint32_t x0 = static_cast<uint32_t>(cursorX) + (static_cast<uint32_t>(col) * scalePermille) / 1000U;
+                    uint32_t x1 = static_cast<uint32_t>(cursorX) + (static_cast<uint32_t>(col + 1U) * scalePermille) / 1000U;
+                    uint32_t y0 = static_cast<uint32_t>(yStart) + (static_cast<uint32_t>(row) * scalePermille) / 1000U;
+                    uint32_t y1 = static_cast<uint32_t>(yStart) + (static_cast<uint32_t>(row + 1U) * scalePermille) / 1000U;
+                    if (x1 <= x0) {
+                        x1 = x0 + 1U;
+                    }
+                    if (y1 <= y0) {
+                        y1 = y0 + 1U;
+                    }
+
+                    for (uint32_t py = y0; py < y1; py++) {
+                        if (py >= kDisplayHeight) {
+                            continue;
+                        }
+                        for (uint32_t px = x0; px < x1; px++) {
+                            if (px < kDisplayWidth) {
+                                Paint_SetPixel(static_cast<UWORD>(px), static_cast<UWORD>(py), textColor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        cursorX += scaledSpanFromPermille(font->Width, scalePermille);
+    }
+}
+
+static void drawCenteredText(UWORD yTop, UWORD areaHeight, const char* text, sFONT* font, UWORD textColor, uint16_t scalePermille)
+{
+    const UWORD scaledCharWidth = scaledSpanFromPermille(font->Width, scalePermille);
+    const UWORD textWidth = static_cast<UWORD>(strlen(text) * scaledCharWidth);
+    const UWORD textHeight = scaledSpanFromPermille(font->Height, scalePermille);
     const UWORD textX = (kDisplayWidth > textWidth) ? (kDisplayWidth - textWidth) / 2 : 0;
     const UWORD textY = yTop + ((areaHeight > textHeight) ? (areaHeight - textHeight) / 2 : 0);
 
-    Paint_DrawString_EN(textX, textY, text, font, WHITE, textColor);
+    drawStringScaled(textX, textY, text, font, textColor, scalePermille);
 }
 
-static void drawLeftAlignedText(UWORD yTop, UWORD areaHeight, UWORD xLeft, const char* text, sFONT* font, UWORD textColor)
+static void drawLeftAlignedText(UWORD yTop, UWORD areaHeight, UWORD xLeft, const char* text, sFONT* font, UWORD textColor, uint16_t scalePermille)
 {
-    const UWORD textHeight = font->Height;
+    const UWORD textHeight = scaledSpanFromPermille(font->Height, scalePermille);
     const UWORD textY = yTop + ((areaHeight > textHeight) ? (areaHeight - textHeight) / 2 : 0);
 
-    Paint_DrawString_EN(xLeft, textY, text, font, WHITE, textColor);
+    drawStringScaled(xLeft, textY, text, font, textColor, scalePermille);
 }
 
-static void drawTextWithOffset(UWORD baseX, UWORD baseY, const char* text, sFONT* font, int16_t offsetX, int16_t offsetY, UWORD textColor)
+static void drawTextWithOffset(UWORD baseX, UWORD baseY, const char* text, sFONT* font, int16_t offsetX, int16_t offsetY, UWORD textColor, uint16_t scalePermille)
 {
     const long x = static_cast<long>(baseX) + static_cast<long>(offsetX);
     const long y = static_cast<long>(baseY) + static_cast<long>(offsetY);
@@ -803,17 +945,19 @@ static void drawTextWithOffset(UWORD baseX, UWORD baseY, const char* text, sFONT
         return;
     }
 
-    Paint_DrawString_EN(static_cast<UWORD>(x), static_cast<UWORD>(y), text, font, WHITE, textColor);
+    drawStringScaled(static_cast<UWORD>(x), static_cast<UWORD>(y), text, font, textColor, scalePermille);
 }
 
-static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xLeft, UWORD areaWidth, const char* rawText, sFONT* font, bool drawRedSegments)
+static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xLeft, UWORD areaWidth, const char* rawText, sFONT* font, bool drawRedSegments, uint16_t scalePermille)
 {
-    if (areaWidth < font->Width || areaHeight < font->Height) {
+    const UWORD scaledCharWidth = scaledSpanFromPermille(font->Width, scalePermille);
+    const UWORD scaledCharHeight = scaledSpanFromPermille(font->Height, scalePermille);
+    if (areaWidth < scaledCharWidth || areaHeight < scaledCharHeight) {
         return;
     }
 
-    const size_t maxCharsPerLine = areaWidth / font->Width;
-    const size_t maxLinesInArea = areaHeight / font->Height;
+    const size_t maxCharsPerLine = areaWidth / scaledCharWidth;
+    const size_t maxLinesInArea = areaHeight / scaledCharHeight;
     const size_t kMaxLinesBuffer = 24;
     if (maxCharsPerLine == 0 || maxLinesInArea == 0) {
         return;
@@ -979,16 +1123,16 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
     }
 
     const size_t renderLineCount = (lineCount > maxLinesInArea) ? maxLinesInArea : lineCount;
-    const UWORD blockHeight = static_cast<UWORD>(renderLineCount * font->Height);
+    const UWORD blockHeight = static_cast<UWORD>(renderLineCount * scaledCharHeight);
     const UWORD startY = yTop + ((areaHeight > blockHeight) ? (areaHeight - blockHeight) / 2 : 0);
 
     for (size_t lineIndex = 0; lineIndex < renderLineCount; lineIndex++) {
         const size_t lineStart = lineStarts[lineIndex];
         const size_t lineEnd = lineEnds[lineIndex];
         const size_t lineLen = lineEnd - lineStart;
-        const UWORD lineWidth = static_cast<UWORD>(lineLen * font->Width);
+        const UWORD lineWidth = static_cast<UWORD>(lineLen * scaledCharWidth);
         const UWORD lineX = xLeft + ((areaWidth > lineWidth) ? (areaWidth - lineWidth) / 2 : 0);
-        const UWORD lineY = startY + static_cast<UWORD>(lineIndex * font->Height);
+        const UWORD lineY = startY + static_cast<UWORD>(lineIndex * scaledCharHeight);
 
         if (lineLen == 0) {
             continue;
@@ -1009,21 +1153,22 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 memcpy(runText, &normalized[runStart], runLen);
                 runText[runLen] = '\0';
 
-                const UWORD runX = lineX + static_cast<UWORD>((runStart - lineStart) * font->Width);
+                const UWORD runX = lineX + static_cast<UWORD>((runStart - lineStart) * scaledCharWidth);
                 const UWORD color = drawRedSegments ? RED : BLACK;
-                Paint_DrawString_EN(runX, lineY, runText, font, WHITE, color);
+                drawStringScaled(runX, lineY, runText, font, color, scalePermille);
                 if (runIsBold) {
-                    if ((runX + kBoldOffsetPx) < kDisplayWidth) {
-                        Paint_DrawString_EN(runX + kBoldOffsetPx, lineY, runText, font, WHITE, color);
+                    const UWORD boldOffset = static_cast<UWORD>(scaledOffsetFromPermille(static_cast<int16_t>(kBoldOffsetPx), scalePermille));
+                    if ((runX + boldOffset) < kDisplayWidth) {
+                        drawStringScaled(runX + boldOffset, lineY, runText, font, color, scalePermille);
                     }
-                    if (runX >= kBoldOffsetPx) {
-                        Paint_DrawString_EN(runX - kBoldOffsetPx, lineY, runText, font, WHITE, color);
+                    if (runX >= boldOffset) {
+                        drawStringScaled(runX - boldOffset, lineY, runText, font, color, scalePermille);
                     }
-                    if ((lineY + kBoldOffsetPx) < kDisplayHeight) {
-                        Paint_DrawString_EN(runX, lineY + kBoldOffsetPx, runText, font, WHITE, color);
+                    if ((lineY + boldOffset) < kDisplayHeight) {
+                        drawStringScaled(runX, lineY + boldOffset, runText, font, color, scalePermille);
                     }
-                    if (lineY >= kBoldOffsetPx) {
-                        Paint_DrawString_EN(runX, lineY - kBoldOffsetPx, runText, font, WHITE, color);
+                    if (lineY >= boldOffset) {
+                        drawStringScaled(runX, lineY - boldOffset, runText, font, color, scalePermille);
                     }
                 }
             }
@@ -1038,18 +1183,27 @@ static void runDisplayCycle(void)
     const UWORD statusLeftPadding = 12;
     const UWORD contentSidePadding = 20;
     const char* titleText = gTitleText;
-    const UWORD titleBarHeight = (kDisplayHeight * 20) / 100;
-    const UWORD statusBarHeight = Font24.Height + 12;
+    sFONT* titleFont = getConfiguredTitleFont();
     sFONT* contentFont = getConfiguredContentFont();
+    sFONT* statusFont = getConfiguredStatusFont();
+    const uint16_t textScalePermille = getConfiguredTextScalePermille();
+    const UWORD scaledTitleCharWidth = scaledSpanFromPermille(titleFont->Width, textScalePermille);
+    const UWORD scaledTitleHeight = scaledSpanFromPermille(titleFont->Height, textScalePermille);
+    const UWORD titleBarHeight = (kDisplayHeight * 20) / 100;
+    const UWORD statusBarHeight = scaledSpanFromPermille(statusFont->Height, textScalePermille) + 12;
     const UWORD contentTop = titleBarHeight;
     const UWORD contentBottom = kDisplayHeight - statusBarHeight;
     const UWORD contentHeight = contentBottom - contentTop;
     const UWORD contentLeft = contentSidePadding;
     const UWORD contentWidth = kDisplayWidth - (contentSidePadding * 2);
 
-    const UWORD titleTextWidth = static_cast<UWORD>(strlen(titleText) * Font64.Width);
+    const UWORD titleTextWidth = static_cast<UWORD>(strlen(titleText) * scaledTitleCharWidth);
     const UWORD titleBaseX = (kDisplayWidth > titleTextWidth) ? (kDisplayWidth - titleTextWidth) / 2 : 0;
-    const UWORD titleBaseY = (titleBarHeight > Font64.Height) ? (titleBarHeight - Font64.Height) / 2 : 0;
+    const UWORD titleBaseY = (titleBarHeight > scaledTitleHeight)
+                                 ? (titleBarHeight - scaledTitleHeight) / 2
+                                 : 0;
+    const int16_t shadowOffset1 = scaledOffsetFromPermille(1, textScalePermille);
+    const int16_t shadowOffset2 = scaledOffsetFromPermille(2, textScalePermille);
 
     const UWORD logoW = kLogoSize;
     const UWORD logoH = kLogoSize;
@@ -1078,39 +1232,39 @@ static void runDisplayCycle(void)
     Paint_Clear();
 
     // Title shadow pass (black) first.
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -2, 0, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 2, 0, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, -1, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, 2, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -1, -1, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 1, 1, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -1, 1, BLACK);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 1, -1, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, -shadowOffset2, 0, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, shadowOffset2, 0, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, 0, -shadowOffset1, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, 0, shadowOffset2, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, -shadowOffset1, -shadowOffset1, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, shadowOffset1, shadowOffset1, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, -shadowOffset1, shadowOffset1, BLACK, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, shadowOffset1, -shadowOffset1, BLACK, textScalePermille);
 
     Paint_DrawLine(0, titleBarHeight, kDisplayWidth - 1, titleBarHeight, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_2X2);
     Paint_DrawLine(0, contentBottom, kDisplayWidth - 1, contentBottom, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_2X2);
-    drawLeftAlignedText(contentBottom, statusBarHeight, statusLeftPadding, gStatusText, &Font24, BLACK);
+    drawLeftAlignedText(contentBottom, statusBarHeight, statusLeftPadding, gStatusText, statusFont, BLACK, textScalePermille);
 
     if (strlen(gContentText) == 0) {
         logStatus("Draw content logo");
         Paint_DrawImage(gImage_240x240logo, logoX, logoY, logoW, logoH);
     } else {
         logStatus("Draw black content text");
-        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, false);
+        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, false, textScalePermille);
     }
 
     Paint_NewImage(REDIMAGE, kDisplayWidth, kDisplayHeight, ROTATE_0, WHITE);
     Paint_Clear();
 
     // Red title overlay pass.
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, 0, RED);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -1, 0, RED);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 2, 0, RED);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, 1, RED);
-    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, -1, RED);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, 0, 0, RED, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, -shadowOffset1, 0, RED, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, shadowOffset2, 0, RED, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, 0, shadowOffset1, RED, textScalePermille);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, titleFont, 0, -shadowOffset1, RED, textScalePermille);
     if (strlen(gContentText) > 0) {
         logStatus("Draw red content text");
-        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, true);
+        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, true, textScalePermille);
     }
 
     logStatus("Start EPD_12in48B_Display (full refresh)");
@@ -1132,11 +1286,11 @@ static void runDisplayCycle(void)
 static void printSerialHelp(void)
 {
     Serial.println(F("Commands:"));
-    Serial.println(F("  TITLE=<text>    Update title (Font64)"));
-    Serial.println(F("  CONTENT=<text>  Update content (Font48, max 256 chars; _red_, |bold extra|, \\n line break)"));
+    Serial.println(F("  TITLE=<text>    Update title (selected preset)"));
+    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; _red_, |bold extra|, \\n line break)"));
     Serial.println(F("                  Auto status: webwings.nl 2026 (AP/STA: <ip>) if network is active"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
-    Serial.println(F("  STATUS=<text>   Update status bar (Font24, left aligned)"));
+    Serial.println(F("  STATUS=<text>   Update status bar (selected preset, left aligned)"));
     Serial.println(F("  STATUS=IP       Show local WiFi IP in status bar"));
     Serial.println(F("  WIFI=AP         Switch to Access Point mode"));
     Serial.println(F("  WIFI=STA        Switch to normal WiFi mode (router)"));
