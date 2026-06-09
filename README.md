@@ -288,11 +288,11 @@ The library pin mapping for non-ESP32 targets (used here) is:
 
 ## Build and Upload
 
-Compile:
+Compile via the Arduino IDE, or use the Arduino CLI from within VS-Code or even just from the terminal:
 
     arduino-cli compile -b arduino:renesas_uno:unor4wifi --library ./epd12in48 waveshare-arduino-wifi.ino
 
-Upload (replace port):
+Upload the programm to the Arduino UNO R4 Wifi via USB (replace port):
 
     arduino-cli upload -b arduino:renesas_uno:unor4wifi -p /dev/tty.usbmodemXXXX waveshare-arduino-wifi.ino
 
@@ -329,6 +329,7 @@ If upload fails with "serial port busy":
 - `config.h`: startup mode and default display values
 - `tools/example-post.py`: interactive fire-and-forget API client
 - `tools/example-json.py`: JSON-based CLI API client
+- `tools/weather-vancouver-post.py`: Show the Vancouver Weather forecast.
 - `secrets-example.h`: template for local WiFi credentials
 - `.gitignore`: ignores local secrets and OS-specific files
 - `README.md`: setup, runtime behavior, and serial command usage
