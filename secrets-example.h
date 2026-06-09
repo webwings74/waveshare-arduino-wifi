@@ -6,6 +6,9 @@
 #define WIFI_SSID "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD "YOUR_WIFI_PASSWORD"
 
+// Web UI title (used in browser tab and page header).
+#define WEB_TITLE "Waveshare Display"
+
 // Optional AP mode override (must be at least 8 chars for WPA2).
 // If omitted, firmware defaults are used:
 // SSID "Waveshare-AP" and password "waveshare123".

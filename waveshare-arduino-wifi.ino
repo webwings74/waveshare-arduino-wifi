@@ -30,8 +30,7 @@ static const unsigned long kWifiConnectPollMs = 500;
 static const char kDefaultApSsid[] = "Waveshare-AP";
 static const char kDefaultApPassword[] = "waveshare123";
 static const char kApModeBootStatus[] = "webwings.nl 2026 (Access Point Mode)";
-static const UWORD kBoldOffsetPx = 2;
-static const UWORD kExtraBoldOffsetPx = 1;
+static const UWORD kBoldOffsetPx = 1;
 static const unsigned long kHttpReadTimeoutMs = 3000;
 static const size_t kHttpBodyMax = 512;
 
@@ -464,6 +463,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     const String safeTitle = htmlEscape(String(gTitleText));
     const String safeContent = htmlEscape(String(gContentText));
     const String safeMessage = htmlEscape(message);
+    const String safeWebTitle = htmlEscape(String(WEB_TITLE));
     const char* modeLabel = gUseAccessPointMode ? "AP" : "STA";
     const char* targetMode = gUseAccessPointMode ? "STA" : "AP";
 
@@ -474,9 +474,13 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
 
     client.println(F("<!doctype html>"));
     client.println(F("<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"));
-    client.println(F("<title>Waveshare Control</title>"));
+    client.print(F("<title>"));
+    client.print(safeWebTitle);
+    client.println(F("</title>"));
     client.println(F("<style>body{font-family:Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;}input,textarea,button{width:100%;font-size:16px;box-sizing:border-box;margin-top:.5rem;padding:.7rem;}button{cursor:pointer;}label{font-weight:600;display:block;margin-top:1rem;}.msg{margin:1rem 0;padding:.7rem;border:1px solid #8bc28b;background:#eef8ee;}small{display:block;margin-top:.5rem;color:#444;line-height:1.4;}.mode{margin-top:1rem;padding:.6rem;border:1px dashed #999;background:#f8f8f8;}</style>"));
-    client.println(F("</head><body><h1>Waveshare Display</h1>"));
+    client.print(F("</head><body><h1>"));
+    client.print(safeWebTitle);
+    client.println(F("</h1>"));
     client.print(F("<div class='mode'>Actieve netwerkmodus: <strong>"));
     client.print(modeLabel);
     client.println(F("</strong></div>"));
@@ -496,7 +500,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.print(safeContent);
     client.println(F("</textarea>"));
 
-    client.println(F("<small>Ondersteund: _rood_, |vet|, ~extra vet~ en \\n voor nieuwe regel. Lege inhoud toont de logo-weergave.</small>"));
+    client.println(F("<small>Ondersteund: _rood_, |vet| (extra vet) en \\n voor nieuwe regel. Lege inhoud toont de logo-weergave.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
 
     client.println(F("<form method='POST' action='/'>"));
@@ -781,11 +785,9 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
     char normalized[kContentTextMax];
     bool redMask[kContentTextMax];
     bool boldMask[kContentTextMax];
-    bool extraBoldMask[kContentTextMax];
     size_t normalizedLen = 0;
     bool inRedSegment = false;
     bool inBoldSegment = false;
-    bool inExtraBoldSegment = false;
     bool prevWasSpace = false;
 
     for (size_t i = 0; i < static_cast<size_t>(source.length()) && normalizedLen < (kContentTextMax - 1); i++) {
@@ -800,11 +802,6 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             continue;
         }
 
-        if (ch == '~') {
-            inExtraBoldSegment = !inExtraBoldSegment;
-            continue;
-        }
-
         if (ch == '\\' && (i + 1) < static_cast<size_t>(source.length()) && source[i + 1] == 'n') {
             while (normalizedLen > 0 && normalized[normalizedLen - 1] == ' ') {
                 normalizedLen--;
@@ -813,7 +810,6 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 normalized[normalizedLen] = '\n';
                 redMask[normalizedLen] = false;
                 boldMask[normalizedLen] = false;
-                extraBoldMask[normalizedLen] = false;
                 normalizedLen++;
             }
             prevWasSpace = false;
@@ -831,7 +827,6 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                     normalized[normalizedLen] = '\n';
                     redMask[normalizedLen] = false;
                     boldMask[normalizedLen] = false;
-                    extraBoldMask[normalizedLen] = false;
                     normalizedLen++;
                 }
                 prevWasSpace = false;
@@ -849,7 +844,6 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             normalized[normalizedLen] = ' ';
             redMask[normalizedLen] = false;
             boldMask[normalizedLen] = false;
-            extraBoldMask[normalizedLen] = false;
             normalizedLen++;
             prevWasSpace = true;
             continue;
@@ -858,7 +852,6 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         normalized[normalizedLen] = ch;
         redMask[normalizedLen] = inRedSegment;
         boldMask[normalizedLen] = inBoldSegment;
-        extraBoldMask[normalizedLen] = inExtraBoldSegment;
         normalizedLen++;
         prevWasSpace = false;
     }
@@ -962,9 +955,8 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         while (runStart < lineEnd) {
             const bool runIsRed = redMask[runStart];
             const bool runIsBold = boldMask[runStart];
-            const bool runIsExtraBold = extraBoldMask[runStart];
             size_t runEnd = runStart + 1;
-            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold && extraBoldMask[runEnd] == runIsExtraBold) {
+            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold) {
                 runEnd++;
             }
 
@@ -978,20 +970,17 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 const UWORD color = drawRedSegments ? RED : BLACK;
                 Paint_DrawString_EN(runX, lineY, runText, font, WHITE, color);
                 if (runIsBold) {
-                    Paint_DrawString_EN(runX + kBoldOffsetPx, lineY, runText, font, WHITE, color);
-                }
-                if (runIsExtraBold) {
-                    if ((runX + kExtraBoldOffsetPx) < kDisplayWidth) {
-                        Paint_DrawString_EN(runX + kExtraBoldOffsetPx, lineY, runText, font, WHITE, color);
+                    if ((runX + kBoldOffsetPx) < kDisplayWidth) {
+                        Paint_DrawString_EN(runX + kBoldOffsetPx, lineY, runText, font, WHITE, color);
                     }
-                    if (runX >= kExtraBoldOffsetPx) {
-                        Paint_DrawString_EN(runX - kExtraBoldOffsetPx, lineY, runText, font, WHITE, color);
+                    if (runX >= kBoldOffsetPx) {
+                        Paint_DrawString_EN(runX - kBoldOffsetPx, lineY, runText, font, WHITE, color);
                     }
-                    if ((lineY + kExtraBoldOffsetPx) < kDisplayHeight) {
-                        Paint_DrawString_EN(runX, lineY + kExtraBoldOffsetPx, runText, font, WHITE, color);
+                    if ((lineY + kBoldOffsetPx) < kDisplayHeight) {
+                        Paint_DrawString_EN(runX, lineY + kBoldOffsetPx, runText, font, WHITE, color);
                     }
-                    if (lineY >= kExtraBoldOffsetPx) {
-                        Paint_DrawString_EN(runX, lineY - kExtraBoldOffsetPx, runText, font, WHITE, color);
+                    if (lineY >= kBoldOffsetPx) {
+                        Paint_DrawString_EN(runX, lineY - kBoldOffsetPx, runText, font, WHITE, color);
                     }
                 }
             }
@@ -1088,7 +1077,7 @@ static void printSerialHelp(void)
 {
     Serial.println(F("Commands:"));
     Serial.println(F("  TITLE=<text>    Update title (Font64)"));
-    Serial.println(F("  CONTENT=<text>  Update content (Font48, max 256 chars; _red_, |bold|, ~extra~, \\n line break)"));
+    Serial.println(F("  CONTENT=<text>  Update content (Font48, max 256 chars; _red_, |bold extra|, \\n line break)"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (Font24, left aligned)"));
     Serial.println(F("  STATUS=IP       Show local WiFi IP in status bar"));

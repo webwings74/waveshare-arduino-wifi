@@ -58,8 +58,7 @@ Notes:
 - `CONTENT=<text>` supports up to 256 characters (longer input is truncated).
 - `STATUS=IP` shows `WiFi disconnected` when no WiFi connection is available.
 - Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=Dit is _rood_ en dit is zwart`).
-- Text between pipes in `CONTENT` is rendered bold by drawing twice with horizontal offset (example: `CONTENT=Dit is |vet|`).
-- Text between tildes in `CONTENT` is rendered extra bold with extra overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=Dit is ~extra vet~`).
+- Text between pipes in `CONTENT` is rendered extra bold with overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=Dit is |extra vet|`).
 - Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Regel 1\nRegel 2`).
 
 ## Web Interface
@@ -210,7 +209,8 @@ For WiFi functionality, this project uses a local `secrets.h` file.
 1. Copy `secrets-example.h` to `secrets.h`.
 2. Set `WIFI_SSID` and `WIFI_PASSWORD` for STA mode in `secrets.h`.
 3. Optionally set `AP_SSID` and `AP_PASSWORD` to override AP defaults.
-4. Keep `secrets.h` local only.
+4. Set `WEB_TITLE` to control the page title/header shown in the web UI.
+5. Keep `secrets.h` local only.
 
 `secrets.h` is ignored by Git via `.gitignore`, so it is safe to keep your real credentials out of GitHub.
 
