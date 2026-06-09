@@ -588,7 +588,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.print(safeContent);
     client.println(F("</textarea>"));
 
-    client.println(F("<small>Supported: _red_, |bold| (extra bold), and \\n for a new line. Empty content shows the logo view.</small>"));
+    client.println(F("<small>Supported: _red_, |bold| (extra bold), ~inverse~ (highlight), and \\n for a new line. Empty content shows the logo view.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
 
     client.println(F("<form method='POST' action='/'>"));
@@ -972,9 +972,11 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
     char normalized[kContentTextMax];
     bool redMask[kContentTextMax];
     bool boldMask[kContentTextMax];
+    bool inverseMask[kContentTextMax];
     size_t normalizedLen = 0;
     bool inRedSegment = false;
     bool inBoldSegment = false;
+    bool inInverseSegment = false;
     bool prevWasSpace = false;
 
     for (size_t i = 0; i < static_cast<size_t>(source.length()) && normalizedLen < (kContentTextMax - 1); i++) {
@@ -989,6 +991,11 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             continue;
         }
 
+        if (ch == '~') {
+            inInverseSegment = !inInverseSegment;
+            continue;
+        }
+
         if (ch == '\\' && (i + 1) < static_cast<size_t>(source.length()) && source[i + 1] == 'n') {
             while (normalizedLen > 0 && normalized[normalizedLen - 1] == ' ') {
                 normalizedLen--;
@@ -997,6 +1004,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 normalized[normalizedLen] = '\n';
                 redMask[normalizedLen] = false;
                 boldMask[normalizedLen] = false;
+                inverseMask[normalizedLen] = false;
                 normalizedLen++;
             }
             prevWasSpace = false;
@@ -1014,6 +1022,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                     normalized[normalizedLen] = '\n';
                     redMask[normalizedLen] = false;
                     boldMask[normalizedLen] = false;
+                    inverseMask[normalizedLen] = false;
                     normalizedLen++;
                 }
                 prevWasSpace = false;
@@ -1031,6 +1040,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             normalized[normalizedLen] = ' ';
             redMask[normalizedLen] = false;
             boldMask[normalizedLen] = false;
+            inverseMask[normalizedLen] = inInverseSegment;
             normalizedLen++;
             prevWasSpace = true;
             continue;
@@ -1039,6 +1049,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         normalized[normalizedLen] = ch;
         redMask[normalizedLen] = inRedSegment;
         boldMask[normalizedLen] = inBoldSegment;
+        inverseMask[normalizedLen] = inInverseSegment;
         normalizedLen++;
         prevWasSpace = false;
     }
@@ -1142,8 +1153,9 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         while (runStart < lineEnd) {
             const bool runIsRed = redMask[runStart];
             const bool runIsBold = boldMask[runStart];
+            const bool runIsInverse = inverseMask[runStart];
             size_t runEnd = runStart + 1;
-            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold) {
+            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold && inverseMask[runEnd] == runIsInverse) {
                 runEnd++;
             }
 
@@ -1154,7 +1166,24 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 runText[runLen] = '\0';
 
                 const UWORD runX = lineX + static_cast<UWORD>((runStart - lineStart) * scaledCharWidth);
-                const UWORD color = drawRedSegments ? RED : BLACK;
+                UWORD color = drawRedSegments ? RED : BLACK;
+
+                if (runIsInverse) {
+                    const UWORD runWidth = static_cast<UWORD>(runLen * scaledCharWidth);
+                    if (runWidth > 0 && runX < kDisplayWidth && lineY < kDisplayHeight) {
+                        UWORD rectXEnd = runX + runWidth - 1;
+                        UWORD rectYEnd = lineY + scaledCharHeight - 1;
+                        if (rectXEnd >= kDisplayWidth) {
+                            rectXEnd = kDisplayWidth - 1;
+                        }
+                        if (rectYEnd >= kDisplayHeight) {
+                            rectYEnd = kDisplayHeight - 1;
+                        }
+                        Paint_DrawRectangle(runX, lineY, rectXEnd, rectYEnd, color, DRAW_FILL_FULL, DOT_PIXEL_1X1);
+                    }
+                    color = WHITE;
+                }
+
                 drawStringScaled(runX, lineY, runText, font, color, scalePermille);
                 if (runIsBold) {
                     const UWORD boldOffset = static_cast<UWORD>(scaledOffsetFromPermille(static_cast<int16_t>(kBoldOffsetPx), scalePermille));
@@ -1287,7 +1316,7 @@ static void printSerialHelp(void)
 {
     Serial.println(F("Commands:"));
     Serial.println(F("  TITLE=<text>    Update title (selected preset)"));
-    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; _red_, |bold extra|, \\n line break)"));
+    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; _red_, |bold extra|, ~inverse~, \\n line break)"));
     Serial.println(F("                  Auto status: webwings.nl 2026 (AP/STA: <ip>) if network is active"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (selected preset, left aligned)"));

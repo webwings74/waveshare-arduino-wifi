@@ -61,6 +61,7 @@ Notes:
 - `STATUS=IP` shows `WiFi disconnected` when no WiFi connection is available.
 - Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=This is _red_ and this is black`).
 - Text between pipes in `CONTENT` is rendered extra bold with overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=This is |extra bold|`).
+- Text between tildes in `CONTENT` is rendered inverse/highlight style (white text on a filled color block), for example: `CONTENT=Normal ~highlighted~ text`.
 - Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Line 1\nLine 2`).
 
 ## Web Interface
@@ -179,6 +180,10 @@ curl -X POST "http://<arduino-ip>/api/update" \
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "content=Normal ~highlighted~ text"
+
+curl -X POST "http://<arduino-ip>/api/update" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
     -d "title=Web Update&content=Line 1\\nLine 2&status="
 
 curl -X POST "http://<arduino-ip>/api/update" \
@@ -200,6 +205,10 @@ print(r1.status_code, r1.text)
 # Update only content
 r2 = requests.post(arduino_url, data={"content": "_Red_ and |bold| via Python"}, timeout=5)
 print(r2.status_code, r2.text)
+
+# Update content with inverse/highlight text
+r2b = requests.post(arduino_url, data={"content": "Normal ~highlighted~ text via Python"}, timeout=5)
+print(r2b.status_code, r2b.text)
 
 # Reset status to default + current board IP
 r3 = requests.post(arduino_url, data={"status": ""}, timeout=5)
