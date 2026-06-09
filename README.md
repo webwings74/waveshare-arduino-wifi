@@ -71,7 +71,8 @@ For automation from another device in the same network, use:
 
 - `POST /api/update`
 - `Content-Type: application/x-www-form-urlencoded`
-- Body fields: `title` and/or `content` (both optional, at least one required)
+- Body fields: `title`, `content` and/or `status` (all optional, at least one required)
+- If `status` is sent empty (`status=`), the status bar is set to `webwings.nl 2026` followed by the current board IP address.
 
 Examples:
 
@@ -86,7 +87,11 @@ curl -X POST "http://<arduino-ip>/api/update" \
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "title=Web Update&content=Regel 1\\nRegel 2"
+    -d "title=Web Update&content=Regel 1\\nRegel 2&status="
+
+curl -X POST "http://<arduino-ip>/api/update" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "status=Custom status"
 ```
 
 Python example:
@@ -103,6 +108,10 @@ print(r1.status_code, r1.text)
 # Update only content
 r2 = requests.post(arduino_url, data={"content": "_Rood_ en |vet| via Python"}, timeout=5)
 print(r2.status_code, r2.text)
+
+# Reset status to default + current board IP
+r3 = requests.post(arduino_url, data={"status": ""}, timeout=5)
+print(r3.status_code, r3.text)
 ```
 
 ## Hardware

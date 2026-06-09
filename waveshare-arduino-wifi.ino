@@ -105,6 +105,21 @@ static void printWifiStatus(void)
     Serial.println(F(" dBm"));
 }
 
+static String ipToString(const IPAddress& ip)
+{
+    return String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]);
+}
+
+static String buildDefaultStatusText(void)
+{
+    String status = "webwings.nl 2026";
+    if (WiFi.status() == WL_CONNECTED) {
+        status += " ";
+        status += ipToString(WiFi.localIP());
+    }
+    return status;
+}
+
 static void connectWifiAfterBootRefresh(void)
 {
     if (WiFi.status() == WL_NO_MODULE) {
@@ -157,7 +172,7 @@ static bool setStatusToCurrentIp(void)
     }
 
     IPAddress ip = WiFi.localIP();
-    String ipText = String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]);
+    String ipText = ipToString(ip);
     copyStringToBuffer(ipText, gStatusText, kStatusTextMax);
     return true;
 }
@@ -420,6 +435,7 @@ static void handleWebClient(void)
 
         const bool hasTitle = hasFormField(body, "title");
         const bool hasContent = hasFormField(body, "content");
+        const bool hasStatus = hasFormField(body, "status");
 
         if (hasTitle) {
             const String newTitle = urlDecode(getFormField(body, "title"));
@@ -435,13 +451,23 @@ static void handleWebClient(void)
             }
         }
 
-        didUpdate = hasTitle || hasContent;
+        if (hasStatus) {
+            String newStatus = urlDecode(getFormField(body, "status"));
+            newStatus.trim();
+            if (newStatus.length() == 0) {
+                copyStringToBuffer(buildDefaultStatusText(), gStatusText, kStatusTextMax);
+            } else {
+                copyStringToBuffer(newStatus, gStatusText, kStatusTextMax);
+            }
+        }
+
+        didUpdate = hasTitle || hasContent || hasStatus;
         if (didUpdate) {
             runDisplayCycle();
             message = "Display bijgewerkt via web POST.";
             Serial.println(F("OK: web POST applied."));
         } else {
-            message = "Geen velden ontvangen (gebruik title= en/of content=).";
+            message = "Geen velden ontvangen (gebruik title=, content= en/of status=).";
         }
     } else if (isPostRoot || isPostApiUpdate) {
         message = "Lege POST-body ontvangen.";
@@ -452,6 +478,7 @@ static void handleWebClient(void)
     if (isPostApiUpdate) {
         const String safeTitleJson = jsonEscape(String(gTitleText));
         const String safeContentJson = jsonEscape(String(gContentText));
+        const String safeStatusJson = jsonEscape(String(gStatusText));
         const String safeMessageJson = jsonEscape(message);
 
         client.println(F("HTTP/1.1 200 OK"));
@@ -464,6 +491,8 @@ static void handleWebClient(void)
         client.print(safeTitleJson);
         client.print(F("\",\"content\":\""));
         client.print(safeContentJson);
+        client.print(F("\",\"status\":\""));
+        client.print(safeStatusJson);
         client.print(F("\",\"message\":\""));
         client.print(safeMessageJson);
         client.println(F("\"}"));
