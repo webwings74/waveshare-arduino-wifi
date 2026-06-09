@@ -14,7 +14,7 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 - Added WiFi boot connection using credentials from `secrets.h`.
 - Added `STATUS=IP` command to show current local IP address in the status bar.
 - Added styled `CONTENT` markup with `_text_` rendering in red.
-- Added styled `CONTENT` markup with `|text|` rendering bold (double draw with horizontal offset).
+- Added styled `CONTENT` markup with `|text|` rendering extra bold.
 - Added styled `CONTENT` markup where `\n` forces a line break.
 - Added `secrets-example.h` and `.gitignore` workflow for safe GitHub usage without exposing local credentials.
 
@@ -23,9 +23,9 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 The sketch currently provides:
 
 - Full-screen tri-color render cycle using `EPD_12in48B`
-- White background with a two-layer title:
-    - red title offset (drop-shadow effect)
-    - black title on top
+- White background with a title effect:
+    - black shadow offsets: x-2, x+2, y-1, y+2 and diagonals
+    - red overlay (Font64): x-1, x+2, y+1, y-1 plus base text
 - Divider line below the title bar
 - Main content area that shows either:
     - centered Waveshare logo (`CONTENT=LOGO`), or

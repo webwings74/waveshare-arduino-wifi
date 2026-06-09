@@ -763,6 +763,17 @@ static void drawLeftAlignedText(UWORD yTop, UWORD areaHeight, UWORD xLeft, const
     Paint_DrawString_EN(xLeft, textY, text, font, WHITE, textColor);
 }
 
+static void drawTextWithOffset(UWORD baseX, UWORD baseY, const char* text, sFONT* font, int16_t offsetX, int16_t offsetY, UWORD textColor)
+{
+    const long x = static_cast<long>(baseX) + static_cast<long>(offsetX);
+    const long y = static_cast<long>(baseY) + static_cast<long>(offsetY);
+    if (x < 0 || y < 0 || x >= static_cast<long>(kDisplayWidth) || y >= static_cast<long>(kDisplayHeight)) {
+        return;
+    }
+
+    Paint_DrawString_EN(static_cast<UWORD>(x), static_cast<UWORD>(y), text, font, WHITE, textColor);
+}
+
 static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xLeft, UWORD areaWidth, const char* rawText, sFONT* font, bool drawRedSegments)
 {
     if (areaWidth < font->Width || areaHeight < font->Height) {
@@ -994,7 +1005,6 @@ static void runDisplayCycle(void)
 {
     const UWORD statusLeftPadding = 12;
     const UWORD contentSidePadding = 20;
-    const UWORD titleOffsetPx = 2;
     const char* titleText = gTitleText;
     const UWORD titleBarHeight = (kDisplayHeight * 20) / 100;
     const UWORD statusBarHeight = Font24.Height + 12;
@@ -1007,8 +1017,6 @@ static void runDisplayCycle(void)
     const UWORD titleTextWidth = static_cast<UWORD>(strlen(titleText) * Font64.Width);
     const UWORD titleBaseX = (kDisplayWidth > titleTextWidth) ? (kDisplayWidth - titleTextWidth) / 2 : 0;
     const UWORD titleBaseY = (titleBarHeight > Font64.Height) ? (titleBarHeight - Font64.Height) / 2 : 0;
-    const UWORD titleRedX = titleBaseX + titleOffsetPx;
-    const UWORD titleRedY = titleBaseY + titleOffsetPx;
 
     const UWORD logoW = kLogoSize;
     const UWORD logoH = kLogoSize;
@@ -1033,17 +1041,18 @@ static void runDisplayCycle(void)
     DEV_Delay_ms(500);
 
     logStatus("Prepare framebuffer");
-    Paint_NewImage(REDIMAGE, kDisplayWidth, kDisplayHeight, ROTATE_0, WHITE);
-    Paint_Clear();
-    Paint_DrawString_EN(titleRedX, titleRedY, titleText, &Font64, WHITE, RED);
-    if (strlen(gContentText) > 0) {
-        logStatus("Draw red content text");
-        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, &Font48, true);
-    }
-
     Paint_NewImage(BLACKIMAGE, kDisplayWidth, kDisplayHeight, ROTATE_0, WHITE);
     Paint_Clear();
-    Paint_DrawString_EN(titleBaseX, titleBaseY, titleText, &Font64, WHITE, BLACK);
+
+    // Title shadow pass (black) first.
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -2, 0, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 2, 0, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, -1, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, 2, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -1, -1, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 1, 1, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -1, 1, BLACK);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 1, -1, BLACK);
 
     Paint_DrawLine(0, titleBarHeight, kDisplayWidth - 1, titleBarHeight, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_2X2);
     Paint_DrawLine(0, contentBottom, kDisplayWidth - 1, contentBottom, BLACK, LINE_STYLE_SOLID, DOT_PIXEL_2X2);
@@ -1055,6 +1064,20 @@ static void runDisplayCycle(void)
     } else {
         logStatus("Draw black content text");
         drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, &Font48, false);
+    }
+
+    Paint_NewImage(REDIMAGE, kDisplayWidth, kDisplayHeight, ROTATE_0, WHITE);
+    Paint_Clear();
+
+    // Red title overlay pass.
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, 0, RED);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, -1, 0, RED);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 2, 0, RED);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, 1, RED);
+    drawTextWithOffset(titleBaseX, titleBaseY, titleText, &Font64, 0, -1, RED);
+    if (strlen(gContentText) > 0) {
+        logStatus("Draw red content text");
+        drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, &Font48, true);
     }
 
     logStatus("Start EPD_12in48B_Display (full refresh)");
