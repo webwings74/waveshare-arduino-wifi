@@ -1038,8 +1038,8 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             }
 
             normalized[normalizedLen] = ' ';
-            redMask[normalizedLen] = false;
-            boldMask[normalizedLen] = false;
+            redMask[normalizedLen] = inRedSegment;
+            boldMask[normalizedLen] = inBoldSegment;
             inverseMask[normalizedLen] = inInverseSegment;
             normalizedLen++;
             prevWasSpace = true;
