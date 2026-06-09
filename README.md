@@ -1,6 +1,8 @@
 # Waveshare 12.48 inch E-Paper on Arduino UNO R4 WiFi
 
-This project drives a Waveshare 12.48 inch tri-color E-Paper display (black, white, red) from an Arduino UNO R4 WiFi.
+This project drives a [Waveshare 12.48 inch tri-color E-Paper display](https://www.amazon.nl/Waveshare-12-48inch-Resolution-Controller-Three-Color/dp/B0BKT4D1MB/ref=asc_df_B0BKT4D1MB?mcid=2fe0f0055839360cb9db53854dd6eaff&tag=nlshogostdde-21&linkCode=df0&hvadid=709978723143&hvpos=&hvnetw=g&hvrand=18396918360273289364&hvpone=&hvptwo=&hvqmt=&hvdev=c&hvdvcmdl=&hvlocint=&hvlocphy=9064948&hvtargid=pla-1956713036147&psc=1&hvocijid=18396918360273289364-B0BKT4D1MB-&hvexpln=0&gad_source=1) (black, white, red) from an Arduino UNO R4 WiFi. It is not a really cheap display but it is a nice size.
+
+![Waveshare display](images/61TAQ0Pz5zL._AC_SL1440_.jpg)
 
 This repository is a renamed copy of `waveshare-arduino-content` and is now maintained as `waveshare-arduino-wifi`.
 
