@@ -34,7 +34,10 @@ function postRequest(string $url, string $body, string $contentType, int $timeou
 		$curlErrNo = curl_errno($ch);
 		$curlError = curl_error($ch);
 		$httpStatus = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-		curl_close($ch);
+		if (PHP_VERSION_ID < 80000) {
+			curl_close($ch);
+		}
+		unset($ch);
 
 		if ($responseBody === false) {
 			return [
