@@ -29,7 +29,6 @@ static const unsigned long kWifiConnectTimeoutMs = 30000;
 static const unsigned long kWifiConnectPollMs = 500;
 static const char kDefaultApSsid[] = "Waveshare-AP";
 static const char kDefaultApPassword[] = "waveshare123";
-static const char kApModeBootStatus[] = "webwings.nl 2026 (Access Point Mode)";
 // Bold is simulated by overdrawing the glyph shifted ±1 px in all four cardinal directions.
 // Larger values produce a thicker stroke but look blurry at base font size.
 static const UWORD kBoldOffsetPx = 1;
@@ -406,7 +405,10 @@ static void applyConfiguredDisplayDefaults(void)
     copyStringToBuffer(String(TITLE), gTitleText, kTitleTextMax);
 
     if (gUseAccessPointMode) {
-        copyStringToBuffer(String(kApModeBootStatus), gStatusText, kStatusTextMax);
+        String apStatus = "webwings.nl 2026 (Access Point Mode: ";
+        apStatus += getAccessPointSsid();
+        apStatus += ")";
+        copyStringToBuffer(apStatus, gStatusText, kStatusTextMax);
     } else {
         copyStringToBuffer(String(STATUS), gStatusText, kStatusTextMax);
     }
@@ -1312,7 +1314,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                         if (underlineXEnd >= kDisplayWidth) {
                             underlineXEnd = kDisplayWidth - 1;
                         }
-                        Paint_DrawLine(runX, underlineY, underlineXEnd, underlineY, color, LINE_STYLE_SOLID, DOT_PIXEL_1X1);
+                        Paint_DrawLine(runX, underlineY, underlineXEnd, underlineY, color, LINE_STYLE_SOLID, DOT_PIXEL_3X3);
                     }
                 }
             }
