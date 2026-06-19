@@ -592,7 +592,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.print(safeContent);
     client.println(F("</textarea>"));
 
-    client.println(F("<small>Supported: \xC2\xA7red\xC2\xA7 (red), _underline_, *bold* (extra bold), ~inverse~ (highlight), * bullet (left-aligned, indent on wrap), and \\n for a new line. Empty content shows the logo view.</small>"));
+    client.println(F("<small>Supported: \xC2\xA7red\xC2\xA7 (red), _underline_, [bold] (extra bold), {inverse} (highlight), * bullet (left-aligned, indent on wrap), and \\n for a new line. Empty content shows the logo view.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
 
     client.println(F("<form method='POST' action='/'>"));
@@ -768,9 +768,7 @@ static void handleWebClient(void)
 
         didUpdate = hasTitle || hasContent || hasStatus;
         if (didUpdate) {
-            runDisplayCycle();
             message = "Display updated via web POST.";
-            Serial.println(F("OK: web POST applied."));
         }
 
         if (modeFieldPresent) {
@@ -829,6 +827,13 @@ static void handleWebClient(void)
 
     delay(1);
     client.stop();
+
+    // Display refresh and mode switch run after the client is closed so the
+    // WiFi SPI bus is idle during the long e-paper refresh cycle.
+    if (didUpdate) {
+        Serial.println(F("OK: web POST applied."));
+        runDisplayCycle();
+    }
 
     if (shouldSwitchMode) {
         Serial.print(F("Web requested mode switch to "));
@@ -978,36 +983,6 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         return;
     }
 
-    // Pre-scan: mark which source positions hold a bullet * (a line with exactly one *).
-    // Inline detection would require unbounded lookahead, so a separate forward pass
-    // over each logical line (split at \n / \\n) is cleaner and avoids backtracking.
-    bool srcStarIsBullet[kContentTextMax] = {};
-    {
-        const size_t srcLen = static_cast<size_t>(source.length());
-        size_t linePos = 0;
-        while (linePos < srcLen) {
-            size_t starCount = 0;
-            size_t starAt = 0;
-            size_t p = linePos;
-            while (p < srcLen) {
-                const char c = source[p];
-                if (c == '\n' || c == '\r') break;
-                if (c == '\\' && p + 1 < srcLen && source[p + 1] == 'n') break;
-                if ((uint8_t)c == 0xC2 && p + 1 < srcLen && (uint8_t)source[p + 1] == 0xA7) { p += 2; continue; }
-                if (c == '*') { starCount++; starAt = p; }
-                p++;
-            }
-            if (starCount == 1) {
-                srcStarIsBullet[starAt] = true;
-            }
-            if (p < srcLen) {
-                if (source[p] == '\n' || source[p] == '\r') p++;
-                else if (source[p] == '\\' && p + 1 < srcLen && source[p + 1] == 'n') p += 2;
-            }
-            linePos = p;
-        }
-    }
-
     char normalized[kContentTextMax];
     bool redMask[kContentTextMax];
     bool boldMask[kContentTextMax];
@@ -1038,24 +1013,25 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         }
 
         if (ch == '*') {
-            if (srcStarIsBullet[i]) {
-                inBulletLine = true;
-                if (normalizedLen < (kContentTextMax - 1)) {
-                    normalized[normalizedLen] = '*';
-                    redMask[normalizedLen] = false;
-                    boldMask[normalizedLen] = false;
-                    inverseMask[normalizedLen] = false;
-                    underlineMask[normalizedLen] = false;
-                    bulletLineMask[normalizedLen] = true;
-                    normalizedLen++;
-                }
-            } else {
-                inBoldSegment = !inBoldSegment;
+            inBulletLine = true;
+            if (normalizedLen < (kContentTextMax - 1)) {
+                normalized[normalizedLen] = '*';
+                redMask[normalizedLen] = false;
+                boldMask[normalizedLen] = false;
+                inverseMask[normalizedLen] = false;
+                underlineMask[normalizedLen] = false;
+                bulletLineMask[normalizedLen] = true;
+                normalizedLen++;
             }
             continue;
         }
 
-        if (ch == '~') {
+        if (ch == '[' || ch == ']') {
+            inBoldSegment = !inBoldSegment;
+            continue;
+        }
+
+        if (ch == '{' || ch == '}') {
             inInverseSegment = !inInverseSegment;
             continue;
         }
@@ -1435,7 +1411,7 @@ static void printSerialHelp(void)
 {
     Serial.println(F("Commands:"));
     Serial.println(F("  TITLE=<text>    Update title (selected preset)"));
-    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; \xC2\xA7red\xC2\xA7, _underline_, *bold extra*, ~inverse~, * bullet (left+indent), \\n line break)"));
+    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; \xC2\xA7red\xC2\xA7, _underline_, [bold], {inverse}, * bullet (left+indent), \\n line break)"));
     Serial.println(F("                  Auto status: webwings.nl 2026 (AP/STA: <ip>) if network is active"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (selected preset, left aligned)"));

@@ -417,9 +417,6 @@ void EPD_12in48B_TurnOnDisplay(void)
     EPD_M1S1M2S2_SendCommand(0x12); //Display Refresh
 
     EPD_M1_ReadBusy();
-    // EPD_S1_ReadBusy();
-    // EPD_M2_ReadBusy();
-    // EPD_S2_ReadBusy();
 }
 
 /******************************************************************************
@@ -581,11 +578,10 @@ static void EPD_WaitBusy(const char* tag, UBYTE busyPin, void (*sendCommand)(UBY
     while (1) {
         sendCommand(0x71);
         UBYTE raw = DEV_Digital_Read(busyPin) & 0x01;
-        UBYTE busy = raw;
 
-        if (!busy) {
+        if (!raw) {
             Debug(tag);
-            Debug(" Busy free\r\n");
+            Debug(" ready\r\n");
             DEV_Delay_ms(200);
             return;
         }
@@ -593,19 +589,36 @@ static void EPD_WaitBusy(const char* tag, UBYTE busyPin, void (*sendCommand)(UBY
         if ((millis() - lastLogMs) >= 1000) {
             lastLogMs = millis();
             Debug(tag);
-            Debug(" Busy wait, raw=");
-            Debug(raw);
-            Debug("\r\n");
+            Debug(" waiting...\r\n");
         }
 
         if ((millis() - startMs) >= timeoutMs) {
             Debug(tag);
-            Debug(" Busy TIMEOUT, continuing\r\n");
+            Debug(" timeout, continuing\r\n");
             return;
         }
 
         DEV_Delay_ms(10);
     }
+}
+
+static void EPD_WaitBusyPin(const char* tag, UBYTE busyPin)
+{
+    const uint32_t timeoutMs = 15000;
+    uint32_t startMs = millis();
+
+    while (DEV_Digital_Read(busyPin) & 0x01) {
+        if ((millis() - startMs) >= timeoutMs) {
+            Debug(tag);
+            Debug(" timeout, continuing\r\n");
+            return;
+        }
+        DEV_Delay_ms(10);
+    }
+
+    Debug(tag);
+    Debug(" ready\r\n");
+    DEV_Delay_ms(200);
 }
 
 /******************************************************************************
