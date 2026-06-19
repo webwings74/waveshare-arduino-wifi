@@ -6,6 +6,11 @@ secrets.h
 
 # Python cache
 __pycache__/
+.venv/
 
 # Generated cache for font download/conversion helper
 tools/fonts-cache/
+
+# Files for different tools
+.claude/
+.vscode/
