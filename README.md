@@ -6,6 +6,14 @@ This project drives a [Waveshare 12.48 inch tri-color E-Paper display](https://w
 
 This repository is a renamed copy of `waveshare-arduino-content` and is now maintained as `waveshare-arduino-wifi`.
 
+## Recent Updates (2026-06-12)
+
+- Changed styled `CONTENT` markup markers:
+    - Red text: `_text_` → `§text§`
+    - Bold text: `|text|` → `*text*`
+    - Underline text: `_text_` (new — renders a line under the text, works in black and red)
+    - Bullet line: a line with exactly one `*` (not paired) is treated as a left-aligned bullet; the `*` is shown as the bullet character and continuation lines (word wrap) are indented by 2 character widths.
+
 ## Recent Updates (2026-06-09)
 
 - Added `config.h` for central startup configuration:
@@ -16,8 +24,8 @@ This repository is a renamed copy of `waveshare-arduino-content` and is now main
 - Added WiFi boot connection using credentials from `secrets.h`.
 - Added `STATUS=IP` command to show current local IP address in the status bar.
 - Added automatic status text `webwings.nl 2026 (AP: <ip>)` or `webwings.nl 2026 (STA: <ip>)` on `CONTENT` updates only (not during `setup()`).
-- Added styled `CONTENT` markup with `_text_` rendering in red.
-- Added styled `CONTENT` markup with `|text|` rendering extra bold.
+- Added styled `CONTENT` markup with `_text_` rendering in red (now changed to `§text§`).
+- Added styled `CONTENT` markup with `|text|` rendering extra bold (now changed to `*text*`).
 - Added styled `CONTENT` markup where `\n` forces a line break.
 - Added optional Google Font presets for all text regions (`Space Mono`, `Manrope`, `Anton`, `Permanent Marker`) via `CONTENT_FONT` in `config.h`.
 - Added `secrets-example.h` and `.gitignore` workflow for safe GitHub usage without exposing local credentials.
@@ -61,9 +69,11 @@ Notes:
 - "No line ending" mode is also supported via idle timeout parsing.
 - `CONTENT=<text>` supports up to 256 characters (longer input is truncated).
 - `STATUS=IP` shows `WiFi disconnected` when no WiFi connection is available.
-- Text between underscores in `CONTENT` is rendered in red (example: `CONTENT=This is _red_ and this is black`).
-- Text between pipes in `CONTENT` is rendered extra bold with overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=This is |extra bold|`).
+- Text between `§` in `CONTENT` is rendered in red (example: `CONTENT=This is §red§ and this is black`).
+- Text between underscores in `CONTENT` is rendered with an underline (example: `CONTENT=This is _underlined_`).
+- Text between asterisks in `CONTENT` is rendered extra bold with overdraw on x+1, x-1, y+1 and y-1 (example: `CONTENT=This is *extra bold*`).
 - Text between tildes in `CONTENT` is rendered inverse/highlight style (white text on a filled color block), for example: `CONTENT=Normal ~highlighted~ text`.
+- A line with exactly one `*` (unpaired) is a bullet: the `*` is shown as the bullet character, the line is left-aligned, and any wrapped continuation lines are indented by 2 character widths (example: `CONTENT=* First point\n* Second point`).
 - Use `\n` in `CONTENT` for an explicit line break (example: `CONTENT=Line 1\nLine 2`).
 
 ## Web Interface
@@ -178,7 +188,7 @@ curl -X POST "http://<arduino-ip>/api/update" \
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "content=This is _red_ and |bold|"
+    -d "content=This is §red§ and *bold*"
 
 curl -X POST "http://<arduino-ip>/api/update" \
     -H "Content-Type: application/x-www-form-urlencoded" \
@@ -205,7 +215,7 @@ r1 = requests.post(arduino_url, data={"title": "Python Title"}, timeout=5)
 print(r1.status_code, r1.text)
 
 # Update only content
-r2 = requests.post(arduino_url, data={"content": "_Red_ and |bold| via Python"}, timeout=5)
+r2 = requests.post(arduino_url, data={"content": "§Red§ and *bold* via Python"}, timeout=5)
 print(r2.status_code, r2.text)
 
 # Update content with inverse/highlight text

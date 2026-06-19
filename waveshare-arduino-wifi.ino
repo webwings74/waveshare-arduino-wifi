@@ -30,6 +30,8 @@ static const unsigned long kWifiConnectPollMs = 500;
 static const char kDefaultApSsid[] = "Waveshare-AP";
 static const char kDefaultApPassword[] = "waveshare123";
 static const char kApModeBootStatus[] = "webwings.nl 2026 (Access Point Mode)";
+// Bold is simulated by overdrawing the glyph shifted ±1 px in all four cardinal directions.
+// Larger values produce a thicker stroke but look blurry at base font size.
 static const UWORD kBoldOffsetPx = 1;
 static const unsigned long kHttpReadTimeoutMs = 3000;
 static const size_t kHttpBodyMax = 512;
@@ -588,7 +590,7 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.print(safeContent);
     client.println(F("</textarea>"));
 
-    client.println(F("<small>Supported: _red_, |bold| (extra bold), ~inverse~ (highlight), and \\n for a new line. Empty content shows the logo view.</small>"));
+    client.println(F("<small>Supported: \xC2\xA7red\xC2\xA7 (red), _underline_, *bold* (extra bold), ~inverse~ (highlight), * bullet (left-aligned, indent on wrap), and \\n for a new line. Empty content shows the logo view.</small>"));
     client.println(F("<button type='submit'>POST</button></form>"));
 
     client.println(F("<form method='POST' action='/'>"));
@@ -868,6 +870,8 @@ static int16_t scaledOffsetFromPermille(int16_t value, uint16_t scalePermille)
 
 static void drawStringScaled(UWORD xStart, UWORD yStart, const char* text, sFONT* font, UWORD textColor, uint16_t scalePermille)
 {
+    // At 1:1 scale delegate to the library's optimised routine; the pixel-loop
+    // below is only needed when upscaling (scale > 1000 ‰ = 100 %).
     if (scalePermille <= 1000U) {
         Paint_DrawString_EN(xStart, yStart, text, font, WHITE, textColor);
         return;
@@ -948,6 +952,9 @@ static void drawTextWithOffset(UWORD baseX, UWORD baseY, const char* text, sFONT
     drawStringScaled(static_cast<UWORD>(x), static_cast<UWORD>(y), text, font, textColor, scalePermille);
 }
 
+// Called twice per refresh: once with drawRedSegments=false for the black framebuffer,
+// once with drawRedSegments=true for the red framebuffer. The e-paper panel requires
+// two separate images; splitting here avoids building two full normalized arrays.
 static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xLeft, UWORD areaWidth, const char* rawText, sFONT* font, bool drawRedSegments, uint16_t scalePermille)
 {
     const UWORD scaledCharWidth = scaledSpanFromPermille(font->Width, scalePermille);
@@ -969,25 +976,80 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         return;
     }
 
+    // Pre-scan: mark which source positions hold a bullet * (a line with exactly one *).
+    // Inline detection would require unbounded lookahead, so a separate forward pass
+    // over each logical line (split at \n / \\n) is cleaner and avoids backtracking.
+    bool srcStarIsBullet[kContentTextMax] = {};
+    {
+        const size_t srcLen = static_cast<size_t>(source.length());
+        size_t linePos = 0;
+        while (linePos < srcLen) {
+            size_t starCount = 0;
+            size_t starAt = 0;
+            size_t p = linePos;
+            while (p < srcLen) {
+                const char c = source[p];
+                if (c == '\n' || c == '\r') break;
+                if (c == '\\' && p + 1 < srcLen && source[p + 1] == 'n') break;
+                if ((uint8_t)c == 0xC2 && p + 1 < srcLen && (uint8_t)source[p + 1] == 0xA7) { p += 2; continue; }
+                if (c == '*') { starCount++; starAt = p; }
+                p++;
+            }
+            if (starCount == 1) {
+                srcStarIsBullet[starAt] = true;
+            }
+            if (p < srcLen) {
+                if (source[p] == '\n' || source[p] == '\r') p++;
+                else if (source[p] == '\\' && p + 1 < srcLen && source[p + 1] == 'n') p += 2;
+            }
+            linePos = p;
+        }
+    }
+
     char normalized[kContentTextMax];
     bool redMask[kContentTextMax];
     bool boldMask[kContentTextMax];
     bool inverseMask[kContentTextMax];
+    bool underlineMask[kContentTextMax];
+    bool bulletLineMask[kContentTextMax];
     size_t normalizedLen = 0;
     bool inRedSegment = false;
     bool inBoldSegment = false;
     bool inInverseSegment = false;
+    bool inUnderlineSegment = false;
+    bool inBulletLine = false;
     bool prevWasSpace = false;
 
     for (size_t i = 0; i < static_cast<size_t>(source.length()) && normalizedLen < (kContentTextMax - 1); i++) {
         const char ch = source[i];
-        if (ch == '_') {
+        // § is U+00A7, encoded in UTF-8 as two bytes: 0xC2 0xA7.
+        // The String class iterates raw bytes, so check both bytes explicitly.
+        if ((uint8_t)ch == 0xC2 && (i + 1) < static_cast<size_t>(source.length()) && (uint8_t)source[i + 1] == 0xA7) {
             inRedSegment = !inRedSegment;
+            i++;
             continue;
         }
 
-        if (ch == '|') {
-            inBoldSegment = !inBoldSegment;
+        if (ch == '_') {
+            inUnderlineSegment = !inUnderlineSegment;
+            continue;
+        }
+
+        if (ch == '*') {
+            if (srcStarIsBullet[i]) {
+                inBulletLine = true;
+                if (normalizedLen < (kContentTextMax - 1)) {
+                    normalized[normalizedLen] = '*';
+                    redMask[normalizedLen] = false;
+                    boldMask[normalizedLen] = false;
+                    inverseMask[normalizedLen] = false;
+                    underlineMask[normalizedLen] = false;
+                    bulletLineMask[normalizedLen] = true;
+                    normalizedLen++;
+                }
+            } else {
+                inBoldSegment = !inBoldSegment;
+            }
             continue;
         }
 
@@ -1005,8 +1067,11 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                 redMask[normalizedLen] = false;
                 boldMask[normalizedLen] = false;
                 inverseMask[normalizedLen] = false;
+                underlineMask[normalizedLen] = false;
+                bulletLineMask[normalizedLen] = false;
                 normalizedLen++;
             }
+            inBulletLine = false;
             prevWasSpace = false;
             i++;
             continue;
@@ -1023,8 +1088,11 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                     redMask[normalizedLen] = false;
                     boldMask[normalizedLen] = false;
                     inverseMask[normalizedLen] = false;
+                    underlineMask[normalizedLen] = false;
+                    bulletLineMask[normalizedLen] = false;
                     normalizedLen++;
                 }
+                inBulletLine = false;
                 prevWasSpace = false;
                 continue;
             }
@@ -1041,6 +1109,8 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             redMask[normalizedLen] = inRedSegment;
             boldMask[normalizedLen] = inBoldSegment;
             inverseMask[normalizedLen] = inInverseSegment;
+            underlineMask[normalizedLen] = inUnderlineSegment;
+            bulletLineMask[normalizedLen] = inBulletLine;
             normalizedLen++;
             prevWasSpace = true;
             continue;
@@ -1050,6 +1120,8 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         redMask[normalizedLen] = inRedSegment;
         boldMask[normalizedLen] = inBoldSegment;
         inverseMask[normalizedLen] = inInverseSegment;
+        underlineMask[normalizedLen] = inUnderlineSegment;
+        bulletLineMask[normalizedLen] = inBulletLine;
         normalizedLen++;
         prevWasSpace = false;
     }
@@ -1069,15 +1141,22 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
 
     size_t lineStarts[kMaxLinesBuffer];
     size_t lineEnds[kMaxLinesBuffer];
+    UWORD lineIndentPx[kMaxLinesBuffer];
+    bool lineBullet[kMaxLinesBuffer];
     size_t lineCount = 0;
     size_t pos = 0;
+    bool inBulletWrap = false;
+    UWORD bulletIndentPx = 0;
 
     while (pos < normalizedLen && lineCount < kMaxLinesBuffer) {
         if (normalized[pos] == '\n') {
             lineStarts[lineCount] = pos;
             lineEnds[lineCount] = pos;
+            lineIndentPx[lineCount] = 0;
+            lineBullet[lineCount] = false;
             lineCount++;
             pos++;
+            inBulletWrap = false;
             continue;
         }
 
@@ -1091,16 +1170,32 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         if (normalized[pos] == '\n') {
             lineStarts[lineCount] = pos;
             lineEnds[lineCount] = pos;
+            lineIndentPx[lineCount] = 0;
+            lineBullet[lineCount] = false;
             lineCount++;
             pos++;
+            inBulletWrap = false;
             continue;
         }
+
+        const bool lineIsBulletFirst = bulletLineMask[pos] && normalized[pos] == '*';
+        const bool lineIsBulletContinuation = inBulletWrap && !lineIsBulletFirst;
+
+        if (lineIsBulletFirst) {
+            inBulletWrap = true;
+            // 2 chars: the bullet character itself plus the space the user types after it.
+            bulletIndentPx = scaledCharWidth * 2;
+        }
+
+        const UWORD indentPx = lineIsBulletContinuation ? bulletIndentPx : 0;
+        const UWORD effectiveWidth = (indentPx < areaWidth) ? areaWidth - indentPx : scaledCharWidth;
+        const size_t effectiveMaxChars = effectiveWidth / scaledCharWidth;
 
         const size_t lineStart = pos;
         size_t lastSpace = static_cast<size_t>(-1);
         size_t taken = 0;
 
-        while (pos < normalizedLen && taken < maxCharsPerLine && normalized[pos] != '\n') {
+        while (pos < normalizedLen && taken < effectiveMaxChars && normalized[pos] != '\n') {
             if (normalized[pos] == ' ') {
                 lastSpace = pos;
             }
@@ -1111,7 +1206,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         size_t lineEnd = pos;
         if (pos < normalizedLen && normalized[pos] == '\n') {
             // Respect explicit line break from literal "\\n" in CONTENT.
-        } else if (pos < normalizedLen && taken == maxCharsPerLine && normalized[pos] != ' ' && lastSpace != static_cast<size_t>(-1) && lastSpace > lineStart) {
+        } else if (pos < normalizedLen && taken == effectiveMaxChars && normalized[pos] != ' ' && lastSpace != static_cast<size_t>(-1) && lastSpace > lineStart) {
             lineEnd = lastSpace;
             pos = lastSpace + 1;
         }
@@ -1122,9 +1217,12 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
 
         lineStarts[lineCount] = lineStart;
         lineEnds[lineCount] = lineEnd;
+        lineIndentPx[lineCount] = indentPx;
+        lineBullet[lineCount] = lineIsBulletFirst || lineIsBulletContinuation;
         lineCount++;
 
         if (pos < normalizedLen && normalized[pos] == '\n') {
+            inBulletWrap = false;
             pos++;
         }
     }
@@ -1142,7 +1240,9 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         const size_t lineEnd = lineEnds[lineIndex];
         const size_t lineLen = lineEnd - lineStart;
         const UWORD lineWidth = static_cast<UWORD>(lineLen * scaledCharWidth);
-        const UWORD lineX = xLeft + ((areaWidth > lineWidth) ? (areaWidth - lineWidth) / 2 : 0);
+        const UWORD lineX = lineBullet[lineIndex]
+            ? xLeft + lineIndentPx[lineIndex]
+            : xLeft + ((areaWidth > lineWidth) ? (areaWidth - lineWidth) / 2 : 0);
         const UWORD lineY = startY + static_cast<UWORD>(lineIndex * scaledCharHeight);
 
         if (lineLen == 0) {
@@ -1154,8 +1254,9 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             const bool runIsRed = redMask[runStart];
             const bool runIsBold = boldMask[runStart];
             const bool runIsInverse = inverseMask[runStart];
+            const bool runIsUnderline = underlineMask[runStart];
             size_t runEnd = runStart + 1;
-            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold && inverseMask[runEnd] == runIsInverse) {
+            while (runEnd < lineEnd && redMask[runEnd] == runIsRed && boldMask[runEnd] == runIsBold && inverseMask[runEnd] == runIsInverse && underlineMask[runEnd] == runIsUnderline) {
                 runEnd++;
             }
 
@@ -1186,6 +1287,8 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
 
                 drawStringScaled(runX, lineY, runText, font, color, scalePermille);
                 if (runIsBold) {
+                    // Draw the glyph four more times, each shifted by boldOffset in one cardinal
+                    // direction. The five overlapping copies thicken every stroke uniformly.
                     const UWORD boldOffset = static_cast<UWORD>(scaledOffsetFromPermille(static_cast<int16_t>(kBoldOffsetPx), scalePermille));
                     if ((runX + boldOffset) < kDisplayWidth) {
                         drawStringScaled(runX + boldOffset, lineY, runText, font, color, scalePermille);
@@ -1198,6 +1301,18 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
                     }
                     if (lineY >= boldOffset) {
                         drawStringScaled(runX, lineY - boldOffset, runText, font, color, scalePermille);
+                    }
+                }
+
+                if (runIsUnderline) {
+                    const UWORD runWidth = static_cast<UWORD>(runLen * scaledCharWidth);
+                    const UWORD underlineY = lineY + scaledCharHeight - 1;
+                    if (runWidth > 0 && runX < kDisplayWidth && underlineY < kDisplayHeight) {
+                        UWORD underlineXEnd = runX + runWidth - 1;
+                        if (underlineXEnd >= kDisplayWidth) {
+                            underlineXEnd = kDisplayWidth - 1;
+                        }
+                        Paint_DrawLine(runX, underlineY, underlineXEnd, underlineY, color, LINE_STYLE_SOLID, DOT_PIXEL_1X1);
                     }
                 }
             }
@@ -1282,6 +1397,8 @@ static void runDisplayCycle(void)
         drawCenteredWrappedStyledText(contentTop, contentHeight, contentLeft, contentWidth, gContentText, contentFont, false, textScalePermille);
     }
 
+    // Switch to the red framebuffer. The panel sends both images together during
+    // EPD_12in48B_Display(); pixels set in both buffers appear darkest (black wins).
     Paint_NewImage(REDIMAGE, kDisplayWidth, kDisplayHeight, ROTATE_0, WHITE);
     Paint_Clear();
 
@@ -1316,7 +1433,7 @@ static void printSerialHelp(void)
 {
     Serial.println(F("Commands:"));
     Serial.println(F("  TITLE=<text>    Update title (selected preset)"));
-    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; _red_, |bold extra|, ~inverse~, \\n line break)"));
+    Serial.println(F("  CONTENT=<text>  Update content (selected preset, max 256 chars; \xC2\xA7red\xC2\xA7, _underline_, *bold extra*, ~inverse~, * bullet (left+indent), \\n line break)"));
     Serial.println(F("                  Auto status: webwings.nl 2026 (AP/STA: <ip>) if network is active"));
     Serial.println(F("  CONTENT=LOGO    Show centered logo in content area"));
     Serial.println(F("  STATUS=<text>   Update status bar (selected preset, left aligned)"));
