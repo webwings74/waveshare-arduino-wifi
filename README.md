@@ -6,7 +6,7 @@ This project drives a [Waveshare 12.48 inch tri-color E-Paper display](https://w
 
 This repository is a renamed copy of `waveshare-arduino-content` and is now maintained as `waveshare-arduino-wifi`.
 
-## Recent Updates (2026-06-12)
+## Recent Updates (2026-06-19)
 
 - Changed styled `CONTENT` markup markers:
     - Red text: `_text_` → `§text§`
