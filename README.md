@@ -6,6 +6,17 @@ This project drives a [Waveshare 12.48 inch tri-color E-Paper display](https://w
 
 This repository is a renamed copy of `waveshare-arduino-content` and is now maintained as `waveshare-arduino-wifi`.
 
+## Recent Updates (2026-06-20)
+
+- Added euro (`€`) glyph support to all EPD font files:
+    - `font24.cpp`, `font48.cpp`, `font64.cpp` (default font)
+    - `font24_google_anton.cpp`, `font48_google_anton.cpp`, `font64_google_anton.cpp`
+    - `font24_google_manrope.cpp`, `font48_google_manrope.cpp`, `font64_google_manrope.cpp`
+    - `font24_google_permanentmarker.cpp`, `font48_google_permanentmarker.cpp`, `font64_google_permanentmarker.cpp`
+    - `font24_google_spacemono.cpp`, `font48_google_spacemono.cpp`, `font64_google_spacemono.cpp`
+- Added `tools/generate_euro_glyph.py`: helper script to generate euro glyph bitmap data for EPD font files.
+- Updated drawing functions in `waveshare-arduino-wifi.ino` to support rendering the `€` character.
+
 ## Recent Updates (2026-06-19)
 
 - Changed styled `CONTENT` markup markers:
