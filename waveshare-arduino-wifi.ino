@@ -889,7 +889,7 @@ static void drawStringScaled(UWORD xStart, UWORD yStart, const char* text, sFONT
 
     for (size_t idx = 0; text[idx] != '\0'; idx++) {
         const char ch = text[idx];
-        if (ch < ' ' || ch > '~') {
+        if (ch < ' ' || (uint8_t)ch > 0x7F) {
             continue;
         }
 
@@ -1004,6 +1004,20 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         if ((uint8_t)ch == 0xC2 && (i + 1) < static_cast<size_t>(source.length()) && (uint8_t)source[i + 1] == 0xA7) {
             inRedSegment = !inRedSegment;
             i++;
+            continue;
+        }
+
+        // € is U+20AC, encoded in UTF-8 as three bytes: 0xE2 0x82 0xAC.
+        // Map it to 0x7F which holds the euro glyph appended to every font table.
+        if ((uint8_t)ch == 0xE2 && (i + 2) < static_cast<size_t>(source.length()) && (uint8_t)source[i + 1] == 0x82 && (uint8_t)source[i + 2] == 0xAC) {
+            normalized[normalizedLen] = '\x7f';
+            redMask[normalizedLen] = inRedSegment;
+            boldMask[normalizedLen] = inBoldSegment;
+            inverseMask[normalizedLen] = inInverseSegment;
+            underlineMask[normalizedLen] = inUnderlineSegment;
+            bulletLineMask[normalizedLen] = inBulletLine;
+            normalizedLen++;
+            i += 2;
             continue;
         }
 
