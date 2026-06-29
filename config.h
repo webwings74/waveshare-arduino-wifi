@@ -5,7 +5,7 @@
 // Use: MODE=AP for board-hosted Access Point, or MODE=STA for router/client mode.
 #define AP 1
 #define STA 2
-#define MODE AP
+#define MODE STA
 
 // Display defaults at boot.
 // CONTENT="LOGO" shows the centered logo in the content area.

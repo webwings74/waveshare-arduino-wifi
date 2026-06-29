@@ -983,12 +983,12 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         return;
     }
 
-    char normalized[kContentTextMax];
-    bool redMask[kContentTextMax];
-    bool boldMask[kContentTextMax];
-    bool inverseMask[kContentTextMax];
-    bool underlineMask[kContentTextMax];
-    bool bulletLineMask[kContentTextMax];
+    static char normalized[kContentTextMax];
+    static bool redMask[kContentTextMax];
+    static bool boldMask[kContentTextMax];
+    static bool inverseMask[kContentTextMax];
+    static bool underlineMask[kContentTextMax];
+    static bool bulletLineMask[kContentTextMax];
     size_t normalizedLen = 0;
     bool inRedSegment = false;
     bool inBoldSegment = false;
@@ -1131,10 +1131,10 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
 
     normalized[normalizedLen] = '\0';
 
-    size_t lineStarts[kMaxLinesBuffer];
-    size_t lineEnds[kMaxLinesBuffer];
-    UWORD lineIndentPx[kMaxLinesBuffer];
-    bool lineBullet[kMaxLinesBuffer];
+    static size_t lineStarts[kMaxLinesBuffer];
+    static size_t lineEnds[kMaxLinesBuffer];
+    static UWORD lineIndentPx[kMaxLinesBuffer];
+    static bool lineBullet[kMaxLinesBuffer];
     size_t lineCount = 0;
     size_t pos = 0;
     bool inBulletWrap = false;
