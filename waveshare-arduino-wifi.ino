@@ -38,7 +38,8 @@ static const size_t kHttpBodyMax = 512;
 static char gTitleText[kTitleTextMax] = "";
 static char gContentText[kContentTextMax] = "";
 static char gStatusText[kStatusTextMax] = "";
-static String gSerialLine;
+static char gSerialLine[kSerialLineMax + 1] = "";
+static size_t gSerialLineLen = 0;
 static unsigned long gLastSerialCharMs = 0;
 static WiFiServer gWebServer(80);
 static bool gWebServerStarted = false;
@@ -116,11 +117,6 @@ static void printWifiStatus(void)
     Serial.print(F("Signal strength (RSSI): "));
     Serial.print(rssi);
     Serial.println(F(" dBm"));
-}
-
-static String ipToString(const IPAddress& ip)
-{
-    return String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]);
 }
 
 static const char* getAccessPointSsid(void)
@@ -235,15 +231,15 @@ static sFONT* getConfiguredStatusFont(void)
 #endif
 }
 
-static String buildDefaultStatusText(void)
+static void buildDefaultStatusText(void)
 {
-    String status = "webwings.nl 2026";
     if (isNetworkReady()) {
-        status += " (IP:";
-        status += ipToString(WiFi.localIP());
-        status += ")";
+        IPAddress ip = WiFi.localIP();
+        snprintf(gStatusText, kStatusTextMax, "webwings.nl 2026 (IP:%u.%u.%u.%u)", ip[0], ip[1], ip[2], ip[3]);
+    } else {
+        strncpy(gStatusText, "webwings.nl 2026", kStatusTextMax - 1);
+        gStatusText[kStatusTextMax - 1] = '\0';
     }
-    return status;
 }
 
 static bool setStatusToCurrentModeAndIp(void)
@@ -252,12 +248,9 @@ static bool setStatusToCurrentModeAndIp(void)
         return false;
     }
 
-    String status = "webwings.nl 2026 (";
-    status += activeWifiModeLabel();
-    status += ": ";
-    status += ipToString(WiFi.localIP());
-    status += ")";
-    copyStringToBuffer(status, gStatusText, kStatusTextMax);
+    IPAddress ip = WiFi.localIP();
+    snprintf(gStatusText, kStatusTextMax, "webwings.nl 2026 (%s: %u.%u.%u.%u)",
+             activeWifiModeLabel(), ip[0], ip[1], ip[2], ip[3]);
     return true;
 }
 
@@ -384,41 +377,57 @@ static bool switchNetworkMode(const bool useAccessPointMode)
 static bool setStatusToCurrentIp(void)
 {
     if (!isNetworkReady()) {
-        copyStringToBuffer(String("WiFi disconnected"), gStatusText, kStatusTextMax);
+        strncpy(gStatusText, "WiFi disconnected", kStatusTextMax - 1);
+        gStatusText[kStatusTextMax - 1] = '\0';
         return false;
     }
 
     IPAddress ip = WiFi.localIP();
-    String ipText = ipToString(ip);
-    copyStringToBuffer(ipText, gStatusText, kStatusTextMax);
+    snprintf(gStatusText, kStatusTextMax, "%u.%u.%u.%u", ip[0], ip[1], ip[2], ip[3]);
     return true;
 }
 
-static void copyStringToBuffer(const String& src, char* dst, size_t dstSize)
+static void strTrimRight(char* s)
 {
-    src.toCharArray(dst, dstSize);
-    dst[dstSize - 1] = '\0';
+    size_t len = strlen(s);
+    while (len > 0 && (s[len - 1] == ' ' || s[len - 1] == '\t' || s[len - 1] == '\r' || s[len - 1] == '\n')) {
+        s[--len] = '\0';
+    }
+}
+
+static bool isLogoString(const char* s)
+{
+    return (s[0] == 'L' || s[0] == 'l') &&
+           (s[1] == 'O' || s[1] == 'o') &&
+           (s[2] == 'G' || s[2] == 'g') &&
+           (s[3] == 'O' || s[3] == 'o') &&
+           s[4] == '\0';
 }
 
 static void applyConfiguredDisplayDefaults(void)
 {
-    copyStringToBuffer(String(TITLE), gTitleText, kTitleTextMax);
+    strncpy(gTitleText, TITLE, kTitleTextMax - 1);
+    gTitleText[kTitleTextMax - 1] = '\0';
 
     if (gUseAccessPointMode) {
-        String apStatus = "webwings.nl 2026 (Access Point Mode: ";
-        apStatus += getAccessPointSsid();
-        apStatus += ")";
-        copyStringToBuffer(apStatus, gStatusText, kStatusTextMax);
+        snprintf(gStatusText, kStatusTextMax, "webwings.nl 2026 (Access Point Mode: %s)", getAccessPointSsid());
     } else {
-        copyStringToBuffer(String(STATUS), gStatusText, kStatusTextMax);
+        strncpy(gStatusText, STATUS, kStatusTextMax - 1);
+        gStatusText[kStatusTextMax - 1] = '\0';
     }
 
-    String defaultContent = String(CONTENT);
-    defaultContent.trim();
-    if (defaultContent.equalsIgnoreCase("LOGO")) {
+    char tmpContent[kContentTextMax];
+    strncpy(tmpContent, CONTENT, kContentTextMax - 1);
+    tmpContent[kContentTextMax - 1] = '\0';
+    strTrimRight(tmpContent);
+    const char* tstart = tmpContent;
+    while (*tstart == ' ' || *tstart == '\t') tstart++;
+
+    if (isLogoString(tstart)) {
         gContentText[0] = '\0';
     } else {
-        copyStringToBuffer(defaultContent, gContentText, kContentTextMax);
+        strncpy(gContentText, tstart, kContentTextMax - 1);
+        gContentText[kContentTextMax - 1] = '\0';
     }
 }
 
@@ -436,126 +445,82 @@ static int hexDigitToInt(const char ch)
     return -1;
 }
 
-static String urlDecode(const String& encoded)
+static void urlDecodeN(const char* encoded, size_t encodedLen, char* out, size_t outSize)
 {
-    String decoded;
-    decoded.reserve(encoded.length());
-
-    for (size_t i = 0; i < static_cast<size_t>(encoded.length()); i++) {
+    size_t outLen = 0;
+    for (size_t i = 0; i < encodedLen && outLen < outSize - 1; i++) {
         const char ch = encoded[i];
         if (ch == '+') {
-            decoded += ' ';
+            out[outLen++] = ' ';
             continue;
         }
-
-        if (ch == '%' && (i + 2) < static_cast<size_t>(encoded.length())) {
+        if (ch == '%' && i + 2 < encodedLen) {
             const int hi = hexDigitToInt(encoded[i + 1]);
             const int lo = hexDigitToInt(encoded[i + 2]);
             if (hi >= 0 && lo >= 0) {
-                decoded += static_cast<char>((hi << 4) | lo);
+                out[outLen++] = static_cast<char>((hi << 4) | lo);
                 i += 2;
                 continue;
             }
         }
-
-        decoded += ch;
+        out[outLen++] = ch;
     }
-
-    return decoded;
+    out[outLen] = '\0';
 }
 
-static String getFormField(const String& body, const char* key)
+static bool getFormField(const char* body, const char* key, char* out, size_t outSize)
 {
-    const String needle = String(key) + "=";
-    const int startPos = body.indexOf(needle);
-    if (startPos < 0) {
-        return "";
+    char needle[68];
+    snprintf(needle, sizeof(needle), "%s=", key);
+    const char* start = strstr(body, needle);
+    if (!start) {
+        out[0] = '\0';
+        return false;
     }
-
-    const int valueStart = startPos + needle.length();
-    int valueEnd = body.indexOf('&', valueStart);
-    if (valueEnd < 0) {
-        valueEnd = body.length();
-    }
-    return body.substring(valueStart, valueEnd);
+    start += strlen(needle);
+    const char* end = strchr(start, '&');
+    if (!end) end = start + strlen(start);
+    urlDecodeN(start, static_cast<size_t>(end - start), out, outSize);
+    return true;
 }
 
-static bool hasFormField(const String& body, const char* key)
+static bool hasFormField(const char* body, const char* key)
 {
-    const String needle = String(key) + "=";
-    return body.indexOf(needle) >= 0;
+    char needle[68];
+    snprintf(needle, sizeof(needle), "%s=", key);
+    return strstr(body, needle) != nullptr;
 }
 
-static String htmlEscape(const String& raw)
+static void sendHtmlEscaped(WiFiClient& client, const char* s)
 {
-    String out;
-    out.reserve(raw.length() + 16);
-
-    for (size_t i = 0; i < static_cast<size_t>(raw.length()); i++) {
-        const char ch = raw[i];
-        switch (ch) {
-        case '&':
-            out += F("&amp;");
-            break;
-        case '<':
-            out += F("&lt;");
-            break;
-        case '>':
-            out += F("&gt;");
-            break;
-        case '"':
-            out += F("&quot;");
-            break;
-        case '\'':
-            out += F("&#39;");
-            break;
-        default:
-            out += ch;
-            break;
+    for (; *s; s++) {
+        switch (*s) {
+        case '&':  client.print(F("&amp;"));  break;
+        case '<':  client.print(F("&lt;"));   break;
+        case '>':  client.print(F("&gt;"));   break;
+        case '"':  client.print(F("&quot;")); break;
+        case '\'': client.print(F("&#39;"));  break;
+        default:   client.write(*s);           break;
         }
     }
-
-    return out;
 }
 
-static String jsonEscape(const String& raw)
+static void sendJsonEscaped(WiFiClient& client, const char* s)
 {
-    String out;
-    out.reserve(raw.length() + 16);
-
-    for (size_t i = 0; i < static_cast<size_t>(raw.length()); i++) {
-        const char ch = raw[i];
-        switch (ch) {
-        case '\\':
-            out += F("\\\\");
-            break;
-        case '"':
-            out += F("\\\"");
-            break;
-        case '\n':
-            out += F("\\n");
-            break;
-        case '\r':
-            out += F("\\r");
-            break;
-        case '\t':
-            out += F("\\t");
-            break;
-        default:
-            out += ch;
-            break;
+    for (; *s; s++) {
+        switch (*s) {
+        case '\\': client.print(F("\\\\")); break;
+        case '"':  client.print(F("\\\"")); break;
+        case '\n': client.print(F("\\n"));  break;
+        case '\r': client.print(F("\\r"));  break;
+        case '\t': client.print(F("\\t"));  break;
+        default:   client.write(*s);         break;
         }
     }
-
-    return out;
 }
 
-static void sendWebFormPage(WiFiClient& client, const String& message)
+static void sendWebFormPage(WiFiClient& client, const char* message)
 {
-    const String safeTitle = htmlEscape(String(gTitleText));
-    const String safeContent = htmlEscape(String(gContentText));
-    const String safeMessage = htmlEscape(message);
-    const String safeWebTitle = htmlEscape(String(WEB_TITLE));
     const char* modeLabel = gUseAccessPointMode ? "AP" : "STA";
     const char* targetMode = gUseAccessPointMode ? "STA" : "AP";
 
@@ -567,29 +532,29 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
     client.println(F("<!doctype html>"));
     client.println(F("<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"));
     client.print(F("<title>"));
-    client.print(safeWebTitle);
+    sendHtmlEscaped(client, WEB_TITLE);
     client.println(F("</title>"));
     client.println(F("<style>body{font-family:Arial,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;}input,textarea,button{width:100%;font-size:16px;box-sizing:border-box;margin-top:.5rem;padding:.7rem;}button{cursor:pointer;}label{font-weight:600;display:block;margin-top:1rem;}.msg{margin:1rem 0;padding:.7rem;border:1px solid #8bc28b;background:#eef8ee;}small{display:block;margin-top:.5rem;color:#444;line-height:1.4;}.mode{margin-top:1rem;padding:.6rem;border:1px dashed #999;background:#f8f8f8;}</style>"));
     client.print(F("</head><body><h1>"));
-    client.print(safeWebTitle);
+    sendHtmlEscaped(client, WEB_TITLE);
     client.println(F("</h1>"));
     client.print(F("<div class='mode'>Active network mode: <strong>"));
     client.print(modeLabel);
     client.println(F("</strong></div>"));
 
-    if (safeMessage.length() > 0) {
+    if (message[0] != '\0') {
         client.print(F("<div class='msg'>"));
-        client.print(safeMessage);
+        sendHtmlEscaped(client, message);
         client.println(F("</div>"));
     }
 
     client.println(F("<form method='POST' action='/'>"));
     client.print(F("<label for='title'>Title</label><input id='title' name='title' type='text' maxlength='63' value='"));
-    client.print(safeTitle);
+    sendHtmlEscaped(client, gTitleText);
     client.println(F("'>"));
 
     client.print(F("<label for='content'>Content</label><textarea id='content' name='content' rows='7' maxlength='256'>"));
-    client.print(safeContent);
+    sendHtmlEscaped(client, gContentText);
     client.println(F("</textarea>"));
 
     client.println(F("<small>Supported: \xC2\xA7red\xC2\xA7 (red), _underline_, [bold] (extra bold), {inverse} (highlight), * bullet (left-aligned, indent on wrap), and \\n for a new line. Empty content shows the logo view.</small>"));
@@ -608,7 +573,9 @@ static void sendWebFormPage(WiFiClient& client, const String& message)
 
 static void sendRedirectToRoot(WiFiClient& client)
 {
-    const String location = String("http://") + ipToString(WiFi.localIP()) + "/";
+    IPAddress ip = WiFi.localIP();
+    char location[48];
+    snprintf(location, sizeof(location), "http://%u.%u.%u.%u/", ip[0], ip[1], ip[2], ip[3]);
 
     client.println(F("HTTP/1.1 302 Found"));
     client.print(F("Location: "));
@@ -649,45 +616,54 @@ static void handleWebClient(void)
 
     client.setTimeout(2000);
 
-    String requestLine = client.readStringUntil('\n');
-    requestLine.trim();
+    // Read and parse the request line
+    static char requestLine[128];
+    size_t reqLen = client.readBytesUntil('\n', requestLine, sizeof(requestLine) - 1);
+    requestLine[reqLen] = '\0';
+    if (reqLen > 0 && requestLine[reqLen - 1] == '\r') requestLine[--reqLen] = '\0';
 
-    const int firstSpace = requestLine.indexOf(' ');
-    const int secondSpace = requestLine.indexOf(' ', firstSpace + 1);
-    String method = "";
-    String path = "";
-    if (firstSpace > 0 && secondSpace > firstSpace) {
-        method = requestLine.substring(0, firstSpace);
-        path = requestLine.substring(firstSpace + 1, secondSpace);
+    static char method[8];
+    static char path[128];
+    method[0] = '\0';
+    path[0] = '\0';
+    char* sp1 = strchr(requestLine, ' ');
+    if (sp1) {
+        size_t mLen = static_cast<size_t>(sp1 - requestLine);
+        if (mLen >= sizeof(method)) mLen = sizeof(method) - 1;
+        memcpy(method, requestLine, mLen);
+        method[mLen] = '\0';
+        char* sp2 = strchr(sp1 + 1, ' ');
+        if (sp2) {
+            size_t pLen = static_cast<size_t>(sp2 - (sp1 + 1));
+            if (pLen >= sizeof(path)) pLen = sizeof(path) - 1;
+            memcpy(path, sp1 + 1, pLen);
+            path[pLen] = '\0';
+        }
     }
 
-    const bool isGetRoot = (method == "GET" && path == "/");
-    const bool isPostRoot = (method == "POST" && path == "/");
-    const bool isPostApiUpdate = (method == "POST" && path == "/api/update");
+    const bool isGetRoot = (strcmp(method, "GET") == 0 && strcmp(path, "/") == 0);
+    const bool isPostRoot = (strcmp(method, "POST") == 0 && strcmp(path, "/") == 0);
+    const bool isPostApiUpdate = (strcmp(method, "POST") == 0 && strcmp(path, "/api/update") == 0);
 
+    // Read headers
     int contentLength = 0;
+    static char headerLine[128];
     while (client.connected()) {
-        String headerLine = client.readStringUntil('\n');
-        if (headerLine == "\r" || headerLine.length() == 0) {
-            break;
-        }
-
-        String trimmed = headerLine;
-        trimmed.trim();
-        if (trimmed.length() == 0) {
-            break;
-        }
-
-        String lower = trimmed;
-        lower.toLowerCase();
-        if (lower.startsWith("content-length:")) {
-            String value = trimmed.substring(15);
-            value.trim();
-            contentLength = value.toInt();
+        size_t hLen = client.readBytesUntil('\n', headerLine, sizeof(headerLine) - 1);
+        headerLine[hLen] = '\0';
+        if (hLen > 0 && headerLine[hLen - 1] == '\r') headerLine[--hLen] = '\0';
+        if (hLen == 0) break;
+        // Case-insensitive check for content-length
+        char lc[32];
+        size_t lcLen = (hLen < 31) ? hLen : 31;
+        for (size_t i = 0; i < lcLen; i++) lc[i] = tolower(headerLine[i]);
+        lc[lcLen] = '\0';
+        if (strncmp(lc, "content-length:", 15) == 0) {
+            contentLength = atoi(headerLine + 15);
         }
     }
 
-    String message = "";
+    const char* message = "";
     bool didUpdate = false;
     bool modeFieldPresent = false;
     bool modeFieldValid = false;
@@ -697,49 +673,48 @@ static void handleWebClient(void)
 
     if ((isPostRoot || isPostApiUpdate) && contentLength > 0) {
         const int bodyLimit = (contentLength > static_cast<int>(kHttpBodyMax)) ? static_cast<int>(kHttpBodyMax) : contentLength;
-        String body;
-        body.reserve(bodyLimit);
-
+        static char body[kHttpBodyMax + 1];
+        size_t bodyLen = 0;
         int bytesRead = 0;
 
         const unsigned long readStartMs = millis();
         while (bytesRead < contentLength && (millis() - readStartMs) < kHttpReadTimeoutMs) {
             while (client.available() > 0 && bytesRead < contentLength) {
                 const char ch = static_cast<char>(client.read());
-                if (static_cast<int>(body.length()) < bodyLimit) {
-                    body += ch;
+                if (static_cast<int>(bodyLen) < bodyLimit) {
+                    body[bodyLen++] = ch;
                 }
                 bytesRead++;
             }
             delay(1);
         }
+        body[bodyLen] = '\0';
 
         const bool hasTitle = hasFormField(body, "title");
         const bool hasContent = hasFormField(body, "content");
         const bool hasStatus = hasFormField(body, "status");
         const bool hasMode = hasFormField(body, "mode");
 
+        static char fieldBuf[kContentTextMax];
+
         if (hasTitle) {
-            const String newTitle = urlDecode(getFormField(body, "title"));
-            copyStringToBuffer(newTitle, gTitleText, kTitleTextMax);
+            getFormField(body, "title", gTitleText, kTitleTextMax);
         }
 
         if (hasContent) {
-            const String newContent = urlDecode(getFormField(body, "content"));
-            if (newContent.equalsIgnoreCase("LOGO")) {
+            getFormField(body, "content", fieldBuf, kContentTextMax);
+            if (isLogoString(fieldBuf)) {
                 gContentText[0] = '\0';
             } else {
-                copyStringToBuffer(newContent, gContentText, kContentTextMax);
+                strncpy(gContentText, fieldBuf, kContentTextMax - 1);
+                gContentText[kContentTextMax - 1] = '\0';
             }
         }
 
         if (hasStatus) {
-            String newStatus = urlDecode(getFormField(body, "status"));
-            newStatus.trim();
-            if (newStatus.length() == 0) {
-                copyStringToBuffer(buildDefaultStatusText(), gStatusText, kStatusTextMax);
-            } else {
-                copyStringToBuffer(newStatus, gStatusText, kStatusTextMax);
+            getFormField(body, "status", gStatusText, kStatusTextMax);
+            if (strlen(gStatusText) == 0) {
+                buildDefaultStatusText();
             }
         }
 
@@ -749,16 +724,16 @@ static void handleWebClient(void)
 
         if (hasMode) {
             modeFieldPresent = true;
-            String newMode = urlDecode(getFormField(body, "mode"));
-            newMode.trim();
-            newMode.toUpperCase();
+            char modeVal[8];
+            getFormField(body, "mode", modeVal, sizeof(modeVal));
+            for (size_t i = 0; modeVal[i]; i++) modeVal[i] = toupper(modeVal[i]);
 
-            if (newMode == "AP") {
+            if (strcmp(modeVal, "AP") == 0) {
                 modeFieldValid = true;
                 switchToApMode = true;
                 modeAlreadyActive = gUseAccessPointMode;
                 shouldSwitchMode = !modeAlreadyActive;
-            } else if (newMode == "STA") {
+            } else if (strcmp(modeVal, "STA") == 0) {
                 modeFieldValid = true;
                 switchToApMode = false;
                 modeAlreadyActive = !gUseAccessPointMode;
@@ -793,11 +768,6 @@ static void handleWebClient(void)
     }
 
     if (isPostApiUpdate) {
-        const String safeTitleJson = jsonEscape(String(gTitleText));
-        const String safeContentJson = jsonEscape(String(gContentText));
-        const String safeStatusJson = jsonEscape(String(gStatusText));
-        const String safeMessageJson = jsonEscape(message);
-
         client.println(F("HTTP/1.1 200 OK"));
         client.println(F("Content-Type: application/json; charset=utf-8"));
         client.println(F("Connection: close"));
@@ -805,17 +775,17 @@ static void handleWebClient(void)
         client.print(F("{\"ok\":"));
         client.print(didUpdate ? F("true") : F("false"));
         client.print(F(",\"title\":\""));
-        client.print(safeTitleJson);
+        sendJsonEscaped(client, gTitleText);
         client.print(F("\",\"content\":\""));
-        client.print(safeContentJson);
+        sendJsonEscaped(client, gContentText);
         client.print(F("\",\"status\":\""));
-        client.print(safeStatusJson);
+        sendJsonEscaped(client, gStatusText);
         client.print(F("\",\"message\":\""));
-        client.print(safeMessageJson);
+        sendJsonEscaped(client, message);
         client.println(F("\"}"));
     } else if (isGetRoot || isPostRoot) {
         sendWebFormPage(client, message);
-    } else if (gUseAccessPointMode && method == "GET") {
+    } else if (gUseAccessPointMode && strcmp(method, "GET") == 0) {
         sendRedirectToRoot(client);
     } else {
         client.println(F("HTTP/1.1 404 Not Found"));
@@ -977,9 +947,13 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
         return;
     }
 
-    String source = rawText;
-    source.trim();
-    if (source.length() == 0) {
+    // Trim leading and trailing whitespace from rawText without copying to a String
+    const char* src = rawText;
+    while (*src == ' ' || *src == '\t' || *src == '\r' || *src == '\n') src++;
+    const char* srcEnd = src + strlen(src);
+    while (srcEnd > src && (*(srcEnd - 1) == ' ' || *(srcEnd - 1) == '\t' || *(srcEnd - 1) == '\r' || *(srcEnd - 1) == '\n')) srcEnd--;
+    const size_t srcLen = static_cast<size_t>(srcEnd - src);
+    if (srcLen == 0) {
         return;
     }
 
@@ -997,11 +971,10 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
     bool inBulletLine = false;
     bool prevWasSpace = false;
 
-    for (size_t i = 0; i < static_cast<size_t>(source.length()) && normalizedLen < (kContentTextMax - 1); i++) {
-        const char ch = source[i];
+    for (size_t i = 0; i < srcLen && normalizedLen < (kContentTextMax - 1); i++) {
+        const char ch = src[i];
         // § is U+00A7, encoded in UTF-8 as two bytes: 0xC2 0xA7.
-        // The String class iterates raw bytes, so check both bytes explicitly.
-        if ((uint8_t)ch == 0xC2 && (i + 1) < static_cast<size_t>(source.length()) && (uint8_t)source[i + 1] == 0xA7) {
+        if ((uint8_t)ch == 0xC2 && (i + 1) < srcLen && (uint8_t)src[i + 1] == 0xA7) {
             inRedSegment = !inRedSegment;
             i++;
             continue;
@@ -1009,7 +982,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
 
         // € is U+20AC, encoded in UTF-8 as three bytes: 0xE2 0x82 0xAC.
         // Map it to 0x7F which holds the euro glyph appended to every font table.
-        if ((uint8_t)ch == 0xE2 && (i + 2) < static_cast<size_t>(source.length()) && (uint8_t)source[i + 1] == 0x82 && (uint8_t)source[i + 2] == 0xAC) {
+        if ((uint8_t)ch == 0xE2 && (i + 2) < srcLen && (uint8_t)src[i + 1] == 0x82 && (uint8_t)src[i + 2] == 0xAC) {
             normalized[normalizedLen] = '\x7f';
             redMask[normalizedLen] = inRedSegment;
             boldMask[normalizedLen] = inBoldSegment;
@@ -1050,7 +1023,7 @@ static void drawCenteredWrappedStyledText(UWORD yTop, UWORD areaHeight, UWORD xL
             continue;
         }
 
-        if (ch == '\\' && (i + 1) < static_cast<size_t>(source.length()) && source[i + 1] == 'n') {
+        if (ch == '\\' && (i + 1) < srcLen && src[i + 1] == 'n') {
             while (normalizedLen > 0 && normalized[normalizedLen - 1] == ' ') {
                 normalizedLen--;
             }
@@ -1437,47 +1410,60 @@ static void printSerialHelp(void)
     Serial.println(F("  HELP            Show this help"));
 }
 
-static void processSerialCommand(const String& input)
+static void processSerialCommand(const char* input)
 {
-    String cmd = input;
-    cmd.trim();
-    if (cmd.length() == 0) {
+    while (*input == ' ' || *input == '\t' || *input == '\r' || *input == '\n') input++;
+    if (*input == '\0') {
         return;
     }
 
-    String upper = cmd;
-    upper.toUpperCase();
+    static char upper[kSerialLineMax + 1];
+    size_t inputLen = strlen(input);
+    if (inputLen > kSerialLineMax) inputLen = kSerialLineMax;
+    memcpy(upper, input, inputLen);
+    upper[inputLen] = '\0';
+    while (inputLen > 0 && (upper[inputLen - 1] == ' ' || upper[inputLen - 1] == '\t' || upper[inputLen - 1] == '\r' || upper[inputLen - 1] == '\n')) {
+        upper[--inputLen] = '\0';
+    }
+    for (size_t i = 0; i < inputLen; i++) upper[i] = toupper(upper[i]);
 
-    if (upper == "HELP") {
+    if (strcmp(upper, "HELP") == 0) {
         printSerialHelp();
         return;
     }
 
-    if (upper == "REFRESH") {
+    if (strcmp(upper, "REFRESH") == 0) {
         Serial.println(F("Refreshing display..."));
         runDisplayCycle();
         Serial.println(F("OK: display refreshed."));
         return;
     }
 
-    if (upper.startsWith("TITLE=")) {
-        String value = cmd.substring(6);
-        value.trim();
-        copyStringToBuffer(value, gTitleText, kTitleTextMax);
+    if (strncmp(upper, "TITLE=", 6) == 0) {
+        const char* value = input + 6;
+        while (*value == ' ' || *value == '\t') value++;
+        strncpy(gTitleText, value, kTitleTextMax - 1);
+        gTitleText[kTitleTextMax - 1] = '\0';
+        strTrimRight(gTitleText);
         runDisplayCycle();
         Serial.print(F("OK: title="));
         Serial.println(gTitleText);
         return;
     }
 
-    if (upper.startsWith("CONTENT=")) {
-        String value = cmd.substring(8);
-        value.trim();
+    if (strncmp(upper, "CONTENT=", 8) == 0) {
+        const char* value = input + 8;
+        while (*value == ' ' || *value == '\t') value++;
+        static char trimmed[kContentTextMax];
+        strncpy(trimmed, value, kContentTextMax - 1);
+        trimmed[kContentTextMax - 1] = '\0';
+        strTrimRight(trimmed);
 
-        if (value.equalsIgnoreCase("LOGO")) {
+        if (isLogoString(trimmed)) {
             gContentText[0] = '\0';
         } else {
-            copyStringToBuffer(value, gContentText, kContentTextMax);
+            strncpy(gContentText, trimmed, kContentTextMax - 1);
+            gContentText[kContentTextMax - 1] = '\0';
         }
 
         setStatusToCurrentModeAndIp();
@@ -1492,14 +1478,15 @@ static void processSerialCommand(const String& input)
         return;
     }
 
-    if (upper.startsWith("STATUS=")) {
-        String value = cmd.substring(7);
-        value.trim();
-
-        if (value.equalsIgnoreCase("IP")) {
+    if (strncmp(upper, "STATUS=", 7) == 0) {
+        if (strcmp(upper + 7, "IP") == 0) {
             setStatusToCurrentIp();
         } else {
-            copyStringToBuffer(value, gStatusText, kStatusTextMax);
+            const char* value = input + 7;
+            while (*value == ' ' || *value == '\t') value++;
+            strncpy(gStatusText, value, kStatusTextMax - 1);
+            gStatusText[kStatusTextMax - 1] = '\0';
+            strTrimRight(gStatusText);
         }
 
         runDisplayCycle();
@@ -1508,13 +1495,13 @@ static void processSerialCommand(const String& input)
         return;
     }
 
-    if (upper == "WIFI=MODE") {
+    if (strcmp(upper, "WIFI=MODE") == 0) {
         Serial.print(F("OK: wifi_mode="));
         Serial.println(activeWifiModeLabel());
         return;
     }
 
-    if (upper == "WIFI=AP") {
+    if (strcmp(upper, "WIFI=AP") == 0) {
         const bool ok = switchNetworkMode(true);
         startWebServerIfConnected();
         Serial.print(F("OK: wifi_mode="));
@@ -1522,7 +1509,7 @@ static void processSerialCommand(const String& input)
         return;
     }
 
-    if (upper == "WIFI=STA") {
+    if (strcmp(upper, "WIFI=STA") == 0) {
         const bool ok = switchNetworkMode(false);
         startWebServerIfConnected();
         Serial.print(F("OK: wifi_mode="));
@@ -1531,7 +1518,7 @@ static void processSerialCommand(const String& input)
     }
 
     Serial.print(F("Unknown command: "));
-    Serial.println(cmd);
+    Serial.println(input);
     Serial.println(F("Type HELP for command list."));
 }
 
@@ -1542,20 +1529,24 @@ static void pollSerialCommands(void)
         gLastSerialCharMs = millis();
 
         if (ch == '\r' || ch == '\n') {
+            gSerialLine[gSerialLineLen] = '\0';
             processSerialCommand(gSerialLine);
-            gSerialLine = "";
+            gSerialLineLen = 0;
+            gSerialLine[0] = '\0';
             continue;
         }
 
-        if (gSerialLine.length() < kSerialLineMax) {
-            gSerialLine += ch;
+        if (gSerialLineLen < kSerialLineMax) {
+            gSerialLine[gSerialLineLen++] = ch;
         }
     }
 
     // Allow command entry when Serial Monitor is set to "No line ending".
-    if (gSerialLine.length() > 0 && (millis() - gLastSerialCharMs) >= kSerialIdleProcessMs) {
+    if (gSerialLineLen > 0 && (millis() - gLastSerialCharMs) >= kSerialIdleProcessMs) {
+        gSerialLine[gSerialLineLen] = '\0';
         processSerialCommand(gSerialLine);
-        gSerialLine = "";
+        gSerialLineLen = 0;
+        gSerialLine[0] = '\0';
     }
 }
 
